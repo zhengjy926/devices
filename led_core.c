@@ -4,7 +4,7 @@
   * @author      : ZJY
   * @version     : V1.0
   * @date        : 2025-07-15
-  * @brief       : xxx
+  * @brief       : LED核心框架实现
   * @attention   : xxx
   ******************************************************************************
   * @history     :
@@ -15,7 +15,9 @@
 /* Includes ------------------------------------------------------------------*/
 #include "leds.h"
 #include "minmax.h"
+#include "my_list.h"
 #include <stdio.h>
+#include <string.h>
 
 /* Private typedef -----------------------------------------------------------*/
 
@@ -24,6 +26,15 @@
 /* Private macro -------------------------------------------------------------*/
 
 /* Private variables ---------------------------------------------------------*/
+static LIST_HEAD(led_device_list);     /* LED设备链表头 */
+
+#if USING_RTOS
+static osMutexId_t led_list_mutex = NULL;
+static const osMutexAttr_t led_list_mutex_attr = {
+    .name = "led_list_mutex",
+    .attr_bits = osMutexRecursive,
+};
+#endif
 
 /* Exported variables  -------------------------------------------------------*/
 
@@ -117,11 +128,6 @@ static void set_brightness_delayed_set_brightness(struct led_classdev *led_cdev,
 			return;
 	}
 
-	/* LED HW might have been unplugged, therefore don't warn */
-	if (ret == -ENODEV && led_cdev->flags & LED_UNREGISTERING &&
-	    led_cdev->flags & LED_HW_PLUGGABLE)
-		return;
-
 	if (ret < 0)
         printf("Setting an LED's brightness failed (%d)\n", ret);
 }
@@ -166,9 +172,9 @@ static void set_brightness_delayed(struct led_classdev *led_cdev)
 }
 
 #if USING_RTOS
-static void led_worker_thread(void *argument)
+static void led_worker_thread(void *arg)
 {
-    struct led_classdev *led_cdev = (struct led_classdev *)argument;
+    struct led_classdev *led_cdev = (struct led_classdev *)arg;
 
     for (;;) {
         /* 等待信号量，直到有任务需要处理 */
@@ -410,10 +416,6 @@ void led_set_brightness_nopm(struct led_classdev *led_cdev, unsigned int value)
 void led_set_brightness_nosleep(struct led_classdev *led_cdev, unsigned int value)
 {
 	led_cdev->brightness = min(value, led_cdev->max_brightness);
-
-	if (led_cdev->flags & LED_SUSPENDED)
-		return;
-
 	led_set_brightness_nopm(led_cdev, led_cdev->brightness);
 }
 
@@ -434,11 +436,168 @@ int led_set_brightness_sync(struct led_classdev *led_cdev, unsigned int value)
 		return -EBUSY;
 
 	led_cdev->brightness = min(value, led_cdev->max_brightness);
-
-	if (led_cdev->flags & LED_SUSPENDED)
-		return 0;
-
 	return __led_set_brightness_blocking(led_cdev, led_cdev->brightness);
 }
+
+/* LED设备注册和管理的统一接口实现 */
+
+/**
+ * @brief  注册LED设备到核心框架
+ * @param  led_cdev: LED类设备指针
+ * @retval 成功返回0，失败返回负数错误码
+ */
+int led_classdev_register(struct led_classdev *led_cdev)
+{
+    int ret = 0;
+    
+    if (led_cdev == NULL || led_cdev->name == NULL) {
+        return -EINVAL;
+    }
+    
+#if USING_RTOS
+    if (led_list_mutex != NULL) {
+        if (osMutexAcquire(led_list_mutex, osWaitForever) != osOK) {
+            return -EBUSY;
+        }
+    }
+#endif
+    
+    /* 检查设备是否已存在 */
+    if (led_find_by_name(led_cdev->name) != NULL) {
+        ret = -EEXIST;
+        goto exit;
+    }
+    
+    /* 初始化LED核心 */
+    led_init_core(led_cdev);
+    
+    /* 初始化链表节点并添加到设备列表 */
+    list_node_init(&led_cdev->node);
+    list_add_tail(&led_cdev->node, &led_device_list);
+    
+exit:
+#if USING_RTOS
+    if (led_list_mutex != NULL) {
+        osMutexRelease(led_list_mutex);
+    }
+#endif
+    
+    return ret;
+}
+
+/**
+ * @brief  注销LED设备
+ * @param  led_cdev: LED类设备指针
+ * @retval None
+ */
+void led_classdev_unregister(struct led_classdev *led_cdev)
+{
+    if (led_cdev == NULL) {
+        return;
+    }
+    
+#if USING_RTOS
+    if (led_list_mutex != NULL) {
+        osMutexAcquire(led_list_mutex, osWaitForever);
+    }
+#endif
+    
+    /* 关闭LED */
+    led_set_brightness(led_cdev, LED_OFF);
+    
+    /* 停止软件闪烁 */
+    led_stop_software_blink(led_cdev);
+    
+    /* 从链表中移除 */
+    list_del(&led_cdev->node);
+    
+    /* 清理RTOS资源 */
+#if USING_RTOS
+    if (led_cdev->work_semaphore != NULL) {
+        osSemaphoreDelete(led_cdev->work_semaphore);
+        led_cdev->work_semaphore = NULL;
+    }
+    
+    if (led_cdev->worker_thread != NULL) {
+        osThreadTerminate(led_cdev->worker_thread);
+        led_cdev->worker_thread = NULL;
+    }
+    
+    if (led_cdev->blink_timer != NULL) {
+        osTimerDelete(led_cdev->blink_timer);
+        led_cdev->blink_timer = NULL;
+    }
+    
+    if (led_list_mutex != NULL) {
+        osMutexRelease(led_list_mutex);
+    }
+#endif
+}
+
+/**
+ * @brief  通过名称查找LED设备
+ * @param  name: LED设备名称
+ * @retval 成功返回LED设备指针，失败返回NULL
+ */
+struct led_classdev *led_find_by_name(const char *name)
+{
+    list_t *node;
+    struct led_classdev *led_cdev;
+    
+    if (name == NULL) {
+        return NULL;
+    }
+    
+#if USING_RTOS
+    if (led_list_mutex != NULL) {
+        if (osMutexAcquire(led_list_mutex, osWaitForever) != osOK) {
+            return NULL;
+        }
+    }
+#endif
+    
+    /* 遍历设备链表查找匹配的设备 */
+    list_for_each(node, &led_device_list) {
+        led_cdev = list_entry(node, struct led_classdev, node);
+        if (led_cdev != NULL && led_cdev->name != NULL &&
+            strcmp(led_cdev->name, name) == 0) {
+#if USING_RTOS
+            if (led_list_mutex != NULL) {
+                osMutexRelease(led_list_mutex);
+            }
+#endif
+            return led_cdev;
+        }
+    }
+    
+#if USING_RTOS
+    if (led_list_mutex != NULL) {
+        osMutexRelease(led_list_mutex);
+    }
+#endif
+    
+    return NULL;
+}
+
+/**
+ * @brief  初始化LED子系统
+ * @retval 成功返回0，失败返回负数错误码
+ */
+int led_subsystem_init(void)
+{
+#if USING_RTOS
+    /* 初始化互斥锁 */
+    if (led_list_mutex == NULL) {
+        led_list_mutex = osMutexNew(&led_list_mutex_attr);
+        if (led_list_mutex == NULL) {
+            return -ENOMEM;
+        }
+    }
+#endif
+    
+    /* LED设备链表已通过LIST_HEAD静态初始化 */
+    return 0;
+}
+
 /* Private functions ---------------------------------------------------------*/
 

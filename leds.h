@@ -1,14 +1,14 @@
 /**
   ******************************************************************************
-  * @file        : xxx.h
+  * @file        : leds.h
   * @author      : ZJY
   * @version     : V1.0
   * @date        : 20xx-xx-xx
-  * @brief       : 
+  * @brief       : LED设备头文件
   * @attention   : None
   ******************************************************************************
   * @history     :
-  *         V1.0 : 1.xxx
+  *         V1.0 : 1.实现LED设备框架
   ******************************************************************************
   */
 #ifndef __LEDS_H__
@@ -27,33 +27,15 @@
 #endif
 
 /* Exported define -----------------------------------------------------------*/
-/* Lower 16 bits reflect status */
-#define LED_SUSPENDED		            BIT(0)
-#define LED_UNREGISTERING	            BIT(1)
-
-/* Upper 16 bits reflect control information */
-#define LED_CORE_SUSPENDRESUME	        BIT(16)
-#define LED_SYSFS_DISABLE	            BIT(17)
-#define LED_DEV_CAP_FLASH	            BIT(18)
-#define LED_HW_PLUGGABLE	            BIT(19)
-#define LED_PANIC_INDICATOR	            BIT(20)
-#define LED_BRIGHT_HW_CHANGED	        BIT(21)
-#define LED_RETAIN_AT_SHUTDOWN	        BIT(22)
-#define LED_INIT_DEFAULT_TRIGGER        BIT(23)
-#define LED_REJECT_NAME_CONFLICT        BIT(24)
-#define LED_MULTI_COLOR		            BIT(25)
-
-#define LED_BLINK_SW			        0
-#define LED_BLINK_ONESHOT		        1
-#define LED_BLINK_ONESHOT_STOP		    2
-#define LED_BLINK_INVERT		        3
-#define LED_BLINK_BRIGHTNESS_CHANGE 	4
-#define LED_BLINK_DISABLE		        5
-/* Brightness off also disables hw-blinking so it is a separate action */
-#define LED_SET_BRIGHTNESS_OFF		    6
-#define LED_SET_BRIGHTNESS		        7
-#define LED_SET_BLINK			        8
-
+#define LED_BLINK_SW			        0       /**< Blinking using software methods (timer + workqueue) */
+#define LED_BLINK_ONESHOT		        1       /**< Make a oneshot blink */
+#define LED_BLINK_ONESHOT_STOP		    2       /**< The oneshot blink has been completed and is ready to stop */
+#define LED_BLINK_INVERT		        3       /**< oneshot blink go off first and then go on (invert sequence) */
+#define LED_BLINK_BRIGHTNESS_CHANGE 	4       /**< The brightness needs to be changed when blinking. */
+#define LED_BLINK_DISABLE		        5       /**< Disable blink */
+#define LED_SET_BRIGHTNESS_OFF		    6       /**< Request to set the brightness to LED_OFF and stop blinking */
+#define LED_SET_BRIGHTNESS		        7       /**< Set the brightness in delayed_set_value */
+#define LED_SET_BLINK			        8       /**< Request to set blinking */
 
 /* Exported typedef ----------------------------------------------------------*/
 enum led_brightness {
@@ -62,7 +44,6 @@ enum led_brightness {
 	LED_HALF	= 127,
 	LED_FULL	= 255,
 };
-
 
 struct led_classdev {
 	const char		*name;
@@ -104,23 +85,20 @@ struct led_classdev {
 	int		(*blink_set)(struct led_classdev *led_cdev,
 				     unsigned long *delay_on,
 				     unsigned long *delay_off);
-
-	struct device		*dev;
-	list_t              node;			/* LED Device list */
+                     
+	list_t              node;			    /* LED Device list */
 
 	unsigned long		blink_delay_on, blink_delay_off;
-    osTimerId_t         blink_timer;
 	int			        blink_brightness;
 	int			        new_blink_brightness;
     
+    osTimerId_t         blink_timer;
     osSemaphoreId_t     work_semaphore;
     osThreadId_t        worker_thread;
 	int			        delayed_set_value;
 	unsigned long		delayed_delay_on;
 	unsigned long		delayed_delay_off;
-
-	/* Ensures consistent access to the LED class device */
-    osMutexId_t         led_access;
+    osMutexId_t         led_access;         /* Ensures consistent access to the LED class device */
 };
 
 /* Exported macro ------------------------------------------------------------*/
@@ -133,6 +111,9 @@ static inline int led_get_brightness(struct led_classdev *led_cdev)
 	return led_cdev->brightness;
 }
 
+void led_set_brightness(struct led_classdev *led_cdev, unsigned int brightness);
+int led_set_brightness_sync(struct led_classdev *led_cdev, unsigned int value);
+
 void led_blink_set(struct led_classdev *led_cdev,
                     unsigned long *delay_on,
                     unsigned long *delay_off);
@@ -144,11 +125,6 @@ void led_blink_set_nosleep(struct led_classdev *led_cdev,
 void led_blink_set_oneshot(struct led_classdev *led_cdev,
                            unsigned long *delay_on, unsigned long *delay_off,
                            bool invert);
-
-void led_set_brightness(struct led_classdev *led_cdev, unsigned int brightness);
-
-
-int led_set_brightness_sync(struct led_classdev *led_cdev, unsigned int value);
 
 void led_init_core(struct led_classdev *led_cdev);
 void led_stop_software_blink(struct led_classdev *led_cdev);
@@ -165,6 +141,12 @@ void led_set_brightness_nosleep(struct led_classdev *led_cdev, unsigned int valu
  * Returns: 0 on success or negative error value on failure
  */
 int led_update_brightness(struct led_classdev *led_cdev);
+
+/* LED设备注册和管理的统一接口 */
+int led_classdev_register(struct led_classdev *led_cdev);
+void led_classdev_unregister(struct led_classdev *led_cdev);
+struct led_classdev *led_find_by_name(const char *name);
+int led_subsystem_init(void);
 
 #ifdef __cplusplus
 }

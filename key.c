@@ -86,10 +86,10 @@ static int hw_key_init(key_t *key, const char *key_name, const char *pin_name, u
     key->active_level = active_level;
     key->state = KEY_STATE_NONE;
     key->last_level = !active_level;
-    key->debounce_time = KEY_DEFAULT_DEBOUNCE;    /* Default 2 scan cycles for debounce */
-    key->long_time = KEY_DEFAULT_LONG_TIME;       /* Default 100 scan cycles for long press */
-    key->hold_time = KEY_DEFAULT_HOLD_TIME;       /* Default 10 scan cycles for long press hold */
-    key->repeat_time = KEY_DEFAULT_REPEAT_TIME;   /* Default 20 scan cycles for repeat interval */
+    key->debounce_time = KEY_DEBOUNCE_TIME;
+    key->long_time = KEY_LONG_TIME;
+    key->hold_time = KEY_HOLD_TIME;
+    key->repeat_time = KEY_REPEAT_TIME;
 
     /* Get GPIO pin */
     pin = gpio_get(pin_name);

@@ -23,23 +23,32 @@ extern "C" {
 /* Includes ------------------------------------------------------------------*/
 #include "sys_def.h"
 #include "my_list.h"
-#include "sys_config.h"
 
 /* Exported define -----------------------------------------------------------*/
-/* Key Function Configuration Options */
+/* Key Configuration Options */
 #ifndef KEY_SUPPORT_REPEAT
-#define KEY_SUPPORT_REPEAT         1    /* Enable/Disable repeat click function */
-#endif
+    #define KEY_SUPPORT_REPEAT      1    /* Enable/Disable repeat click function */
+#endif // KEY_SUPPORT_REPEAT
 
 #ifndef KEY_SCAN_PERIOD_MS
-#define KEY_SCAN_PERIOD_MS        10    /* Key scan period (ms) */
-#endif
+    #define KEY_SCAN_PERIOD_MS      10    /* Key scan period (ms) */
+#endif // KEY_SCAN_PERIOD_MS
 
-/* Default Key Parameters Configuration */
-#define KEY_DEFAULT_DEBOUNCE      2     /* Default debounce time (2 scan cycles) */
-#define KEY_DEFAULT_LONG_TIME    100    /* Default long press time (100 scan cycles) */
-#define KEY_DEFAULT_REPEAT_TIME   20    /* Default repeat click interval (20 scan cycles) */
-#define KEY_DEFAULT_HOLD_TIME    10     /* Default long press hold trigger period (10 scan cycles) */
+#ifndef KEY_DEBOUNCE_TIME
+    #define KEY_DEBOUNCE_TIME       2     /* Default debounce time (in KEY_SCAN_PERIOD_MS) */
+#endif // KEY_DEBOUNCE_TIME
+
+#ifndef KEY_LONG_TIME
+    #define KEY_LONG_TIME           100   /* Default long press time (in KEY_SCAN_PERIOD_MS) */
+#endif // KEY_LONG_TIME
+
+#ifndef KEY_REPEAT_TIME
+    #define KEY_REPEAT_TIME         20    /* Default repeat click interval (in KEY_SCAN_PERIOD_MS) */
+#endif // KEY_REPEAT_TIME
+
+#ifndef KEY_HOLD_TIME
+    #define KEY_HOLD_TIME           10    /* Default long press hold trigger period (in KEY_SCAN_PERIOD_MS) */
+#endif // KEY_HOLD_TIME
 
 /* Key Event Definitions */
 enum key_event {
@@ -70,19 +79,19 @@ typedef void (*key_callback)(void *);   /* Key callback function type */
  * @brief Key device structure
  */
 typedef struct key_dev {
-    const char *key_name;          /* Key name */
-    const char *pin_name;          /* Key pin name */
-    size_t pin;                    /* Key GPIO pin */
-    list_t node;                  /* Key device list node */
-    uint8_t active_level : 1;      /* Active level (range: 0-1) */
-    uint8_t state : 2;             /* Current state (range: 0-3) */
-    uint8_t last_level : 1;        /* Last level state (range: 0-1) */
-    uint8_t debounce_time : 4;     /* Debounce time in scan cycles (range: 0-15) */
-    uint8_t repeat_time : 5;       /* Repeat click interval in scan cycles (range: 0-31) */
-    uint8_t repeat_count : 4;      /* Repeat click counter (range: 0-15) */
-    uint16_t ticks;                /* Timer ticks */
-    uint16_t long_time;            /* Long press time in scan cycles */
-    uint8_t hold_time;             /* Long press hold trigger period in scan cycles */
+    const char *key_name;           /* Key name */
+    const char *pin_name;           /* Key pin name */
+    size_t pin;                     /* Key GPIO pin */
+    list_t node;                    /* Key device list node */
+    uint8_t active_level : 1;       /* Active level (range: 0-1) */
+    uint8_t state : 2;              /* Current state (range: 0-3) */
+    uint8_t last_level : 1;         /* Last level state (range: 0-1) */
+    uint8_t debounce_time : 4;      /* Debounce time in scan cycles (range: 0-15) */
+    uint8_t repeat_time : 5;        /* Repeat click interval in scan cycles (range: 0-31) */
+    uint8_t repeat_count : 4;       /* Repeat click counter (range: 0-15) */
+    uint16_t ticks;                 /* Timer ticks */
+    uint16_t long_time;             /* Long press time in scan cycles */
+    uint8_t hold_time;              /* Long press hold trigger period in scan cycles */
     key_callback cb_func[KEY_EVENT_NUM];  /* Event callback function array */
 } key_t;
 
