@@ -100,7 +100,7 @@ int serial_init(serial_t *port)
 
     port->flags.initialized = 1;
     
-#if (USING_RTOS == 1)
+#if USING_RTOS
     /* Create FreeRTOS synchronization objects */
     port->tx_sem = xSemaphoreCreateBinary();
     if (!port->tx_sem) {
@@ -211,7 +211,7 @@ ssize_t serial_read(serial_t *port, void *buffer, size_t size)
         return -EIO;
     }
     
-#if (USING_RTOS == 1)
+#if USING_RTOS
     // FreeRTOS环境：使用互斥量保护多任务读取
     if (port->read_mutex) {
         xSemaphoreTake(port->read_mutex, portMAX_DELAY);
@@ -230,7 +230,7 @@ ssize_t serial_read(serial_t *port, void *buffer, size_t size)
     return ret;
 }
 
-#if (USING_RTOS == 1)
+#if USING_RTOS
 /**
   * @brief  Serial TX task for FreeRTOS
   * @param  arg: pointer to serial device
@@ -316,7 +316,7 @@ ssize_t serial_write(serial_t *port, const void *buffer, size_t size)
         return -EIO;
     }
     
-#if (USING_RTOS == 1)
+#if USING_RTOS
     // FreeRTOS环境：使用互斥量保护多任务写入
     if (port->write_mutex) {
         
@@ -371,7 +371,7 @@ void hw_serial_tx_done_isr(serial_t *port)
     port->flags.tx_busy = 0;
     port->current_tx_len = 0;
     
-#if (USING_RTOS == 1)
+#if USING_RTOS
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     // 触发发送任务检查是否还有数据需要发送
     if (port->tx_sem) {
