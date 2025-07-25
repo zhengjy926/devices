@@ -91,7 +91,8 @@ struct led_classdev {
 	unsigned long		blink_delay_on, blink_delay_off;
 	int			        blink_brightness;
 	int			        new_blink_brightness;
-    
+
+#if USING_RTOS                     
     osTimerId_t         blink_timer;
     osSemaphoreId_t     work_semaphore;
     osThreadId_t        worker_thread;
@@ -99,6 +100,7 @@ struct led_classdev {
 	unsigned long		delayed_delay_on;
 	unsigned long		delayed_delay_off;
     osMutexId_t         led_access;         /* Ensures consistent access to the LED class device */
+#endif
 };
 
 /* Exported macro ------------------------------------------------------------*/

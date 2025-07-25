@@ -31,7 +31,7 @@
 /* Private macro -------------------------------------------------------------*/
 
 /* Private variables ---------------------------------------------------------*/
-static LIST_HEAD(key_list);                /* Key device list head */
+static LIST_HEAD(key_list);                 /* Key device list head */
 static stimer_t key_scan_timer = {0};       /* Key scan timer */
 
 key_t key[] = {
@@ -100,9 +100,9 @@ static int hw_key_init(key_t *key, const char *key_name, const char *pin_name, u
 
     /* Initialize GPIO */
     if (key->active_level)
-        gpio_set_mode(key->pin , PIN_MODE_INPUT, PIN_PULL_RESISTOR_DOWN);
+        gpio_set_mode(key->pin , PIN_INPUT, PIN_PULL_DOWN);
     else
-        gpio_set_mode(key->pin , PIN_MODE_INPUT, PIN_PULL_RESISTOR_UP);
+        gpio_set_mode(key->pin , PIN_INPUT, PIN_PULL_UP);
 
     return 0;
 }

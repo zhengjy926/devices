@@ -42,7 +42,7 @@ static const struct gpio_ops* _hw_pin;
  * @param pull_resistor Pull resistor configuration
  * @return None
  */
-void gpio_set_mode(size_t pin_id, PIN_MODE mode, PIN_PULL_RESISTOR pull_resistor)
+void gpio_set_mode(uint32_t pin_id, pin_mode_t mode, pin_pull_t pull_resistor)
 {
     assert(_hw_pin->set_mode != NULL);
     
@@ -55,7 +55,7 @@ void gpio_set_mode(size_t pin_id, PIN_MODE mode, PIN_PULL_RESISTOR pull_resistor
  * @param value Digital value to write (0 or 1)
  * @return None
  */
-void gpio_write(size_t pin_id, uint8_t value)
+void gpio_write(uint32_t pin_id, uint8_t value)
 {
     assert(_hw_pin->write != NULL);
     
@@ -92,18 +92,18 @@ int gpio_get(const char *name)
 /**
  * @brief Attach interrupt handler to GPIO pin
  * @param pin_id Pin identifier
- * @param mode Interrupt trigger mode (RISING/FALLING/RISING_FALLING)
+ * @param event Interrupt trigger event (RISING/FALLING/RISING_FALLING)
  * @param hdr Interrupt handler function
  * @param args Argument passed to the interrupt handler
  * @return 0 on success, -ENOSYS if operation is not supported
  */
-int gpio_attach_irq(size_t pin_id, uint32_t mode, void (*hdr)(void *args), void *args)
+int gpio_attach_irq(uint32_t pin_id, pin_event_t event, void (*hdr)(void *args), void *args)
 {
     assert(_hw_pin != NULL);
     
     if (_hw_pin->attach_irq)
     {
-        return _hw_pin->attach_irq(pin_id, mode, hdr, args);
+        return _hw_pin->attach_irq(pin_id, event, hdr, args);
     }
     return -ENOSYS;
 }
@@ -113,7 +113,7 @@ int gpio_attach_irq(size_t pin_id, uint32_t mode, void (*hdr)(void *args), void 
  * @param pin_id Pin identifier
  * @return 0 on success, -ENOSYS if operation is not supported
  */
-int gpio_detach_irq(size_t pin_id)
+int gpio_detach_irq(uint32_t pin_id)
 {
     assert(_hw_pin != NULL);
     
@@ -130,7 +130,7 @@ int gpio_detach_irq(size_t pin_id)
  * @param enabled 1 to enable, 0 to disable
  * @return 0 on success, -ENOSYS if operation is not supported
  */
-int gpio_irq_enable(size_t pin_id, uint32_t enabled)
+int gpio_irq_enable(uint32_t pin_id, uint32_t enabled)
 {
     assert(_hw_pin != NULL);
     
