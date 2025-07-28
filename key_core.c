@@ -1,125 +1,38 @@
 /**
   ******************************************************************************
-  * @file        : key.c
-  * @author      : xxx
+  * @file        : key_core.c
+  * @author      : ZJY
   * @version     : V1.0
-  * @date        : 2024-xx-xx
-  * @brief       : GPIO Key Driver Implementation
+  * @date        : 2024-09-26
+  * @brief       : xxx
   * @attention   : None
   ******************************************************************************
   * @history     :
-  *         V1.0 : 1.Implementation of GPIO-based key driver
+  *         V1.0 : 
   *
   ******************************************************************************
   */
-
 /* Includes ------------------------------------------------------------------*/
 #include "key.h"
-#include "gpio.h"
-#include "stimer.h"
-#include <string.h>
 
 /* Private typedef -----------------------------------------------------------*/
 
 /* Private define ------------------------------------------------------------*/
-#define KEY_EVENT_CB(event)                          \
-    do {                                            \
-        if (key->cb_func[event])                    \
-            key->cb_func[event]((void *)key);       \
-    } while (0)
 
 /* Private macro -------------------------------------------------------------*/
 
 /* Private variables ---------------------------------------------------------*/
 static LIST_HEAD(key_list);                 /* Key device list head */
-static stimer_t key_scan_timer = {0};       /* Key scan timer */
 
-key_t key[] = {
-    {
-        .key_name = "key0",
-        .pin_name = "PH.3",
-        .active_level = 0,
-    },
-    {
-        .key_name = "key1",
-        .pin_name = "PH.2",
-        .active_level = 0,
-    },
-    {
-        .key_name = "key2",
-        .pin_name = "PC.13",
-        .active_level = 0,
-    },
-    {
-        .key_name = "wk_up",
-        .pin_name = "PA.0",
-        .active_level = 1,
-    }
-};
-
-/* Exported variables --------------------------------------------------------*/
+/* Exported variables  -------------------------------------------------------*/
 
 /* Private function prototypes -----------------------------------------------*/
-static void key_detect(key_t *key);
-static uint8_t key_read_pin(const key_t *key);
-static void key_scan_timer_callback(void *arg);
+static void key_fsm_handle(key_t *key);
 
 /* Exported functions --------------------------------------------------------*/
-/**
- * @brief  Initialize key hardware
- * @param  key: Key device pointer
- * @param  name: Key name
- * @param  pin: GPIO pin
- * @param  active_level: Active level
- * @retval 0: Success, Others: Failed
- */
-static int hw_key_init(key_t *key, const char *key_name, const char *pin_name, uint8_t active_level)
+int key_device_register(key_t *key)
 {
-    size_t pin;
-
-    if (!key || !key_name || !pin_name)
-        return -EINVAL;
-
-    memset(key, 0, sizeof(key_t));
-    key->key_name = key_name;
-    key->pin_name = pin_name;
-    key->active_level = active_level;
-    key->state = KEY_STATE_NONE;
-    key->last_level = !active_level;
-    key->debounce_time = KEY_DEBOUNCE_TIME;
-    key->long_time = KEY_LONG_TIME;
-    key->hold_time = KEY_HOLD_TIME;
-    key->repeat_time = KEY_REPEAT_TIME;
-
-    /* Get GPIO pin */
-    pin = gpio_get(pin_name);
-    if (!pin)
-        return -EINVAL;
-
-    key->pin = pin;
-
-    /* Initialize GPIO */
-    if (key->active_level)
-        gpio_set_mode(key->pin , PIN_INPUT, PIN_PULL_DOWN);
-    else
-        gpio_set_mode(key->pin , PIN_INPUT, PIN_PULL_UP);
-
-    return 0;
-}
-
-/**
- * @brief  Initialize keys
- * @param  None
- * @retval 0: Success, Others: Failed
- */
-int key_init(void)
-{
-    for (uint32_t i = 0; i < sizeof(key) / sizeof(key[0]); i++) {
-        hw_key_init(&key[i], key[i].key_name, key[i].pin_name, key[i].active_level);
-    }
-    /* Create software timer for periodic key scanning */
-    stimer_create(&key_scan_timer, KEY_SCAN_PERIOD_MS,
-                    STIMER_AUTO_RELOAD, key_scan_timer_callback, NULL);
+    key->id
     
     return 0;
 }
@@ -198,6 +111,13 @@ void key_detach(key_t *key, enum key_event event)
     key->cb_func[event] = NULL;
 }
 
+void key_irq_handle(void *args)
+{
+    key_t* dev = (key_t*)args;
+    
+    key_fsm_handle(dev);
+}
+
 /* Private functions ---------------------------------------------------------*/
 /**
  * @brief  Read key pin level
@@ -232,7 +152,7 @@ static void key_scan_timer_callback(void *arg)
  * @param  key: Key device pointer
  * @retval None
  */
-static void key_detect(key_t *key)
+static void key_fsm_handle(key_t *key)
 {
     uint8_t level = key_read_pin(key);
 
@@ -314,3 +234,5 @@ static void key_detect(key_t *key)
         break;
     }
 }
+/* Private functions ---------------------------------------------------------*/
+

@@ -3,7 +3,7 @@
   * @file        : key.h
   * @author      : xxx
   * @version     : V1.0
-  * @date        : 2024-xx-xx
+  * @date        : 2024-09-26
   * @brief       : GPIO Key Driver Header File
   * @attention   : None
   ******************************************************************************
@@ -51,7 +51,7 @@ extern "C" {
 #endif // KEY_HOLD_TIME
 
 /* Key Event Definitions */
-enum key_event {
+typedef enum key_event {
     KEY_EVENT_DOWN = 0,           /* Key press down */
     KEY_EVENT_UP,                 /* Key release up */
     KEY_EVENT_LONG_START,         /* Long press start */
@@ -62,47 +62,69 @@ enum key_event {
 #endif
     KEY_EVENT_NUM,                /* Number of key events */
     KEY_EVENT_NONE                /* No event */
-};
+}key_event_t;
 
 /* Key State Definitions */
-enum key_state {
+typedef enum key_state {
     KEY_STATE_NONE = 0,          /* No action */
     KEY_STATE_DOWN,              /* Pressed */
     KEY_STATE_UP,                /* Released */
     KEY_STATE_LONG,              /* Long pressed */
-};
+}key_state_t;
+
+/* 定义事件消息队列中的消息结构 */ 
+typedef struct {
+    uint8_t id;                 // 哪个按键
+    key_event_t event;          // 发生了什么事件
+    uint32_t timestamp;         // 何时发生 (RTOS tick)
+} key_event_msg_t;
 
 /* Exported typedef ----------------------------------------------------------*/
 typedef void (*key_callback)(void *);   /* Key callback function type */
+
+struct key_dev; /* 前向声明 */
 
 /**
  * @brief Key device structure
  */
 typedef struct key_dev {
-    const char *key_name;           /* Key name */
-    const char *pin_name;           /* Key pin name */
-    size_t pin;                     /* Key GPIO pin */
-    list_t node;                    /* Key device list node */
-    uint8_t active_level : 1;       /* Active level (range: 0-1) */
-    uint8_t state : 2;              /* Current state (range: 0-3) */
-    uint8_t last_level : 1;         /* Last level state (range: 0-1) */
-    uint8_t debounce_time : 4;      /* Debounce time in scan cycles (range: 0-15) */
-    uint8_t repeat_time : 5;        /* Repeat click interval in scan cycles (range: 0-31) */
-    uint8_t repeat_count : 4;       /* Repeat click counter (range: 0-15) */
-    uint16_t ticks;                 /* Timer ticks */
-    uint16_t long_time;             /* Long press time in scan cycles */
-    uint8_t hold_time;              /* Long press hold trigger period in scan cycles */
-    key_callback cb_func[KEY_EVENT_NUM];  /* Event callback function array */
+    
+    uint32_t (*read_state)(struct key_dev *self);   /**< 读取按键的原始物理状态的函数指针 */
+    
+    uint8_t id;                     /**< 按键唯一ID */
+    void *hw_context;               /**< 指向驱动私有配置数据的指针 */
+    key_state_t state;              /**< Current state */
+    uint16_t debounce_integrator;   /**< 消抖积分器 */
+    list_t  node;                   /**< 链表节点 */
+
+    
+//    const char *key_name;           /* Key name */
+//    const char *pin_name;           /* Key pin name */
+//    size_t pin;                     /* Key GPIO pin */
+//    list_t node;                    /* Key device list node */
+//    uint8_t active_level : 1;       /* Active level (range: 0-1) */
+//    uint8_t state : 2;              /* Current state (range: 0-3) */
+//    uint8_t last_level : 1;         /* Last level state (range: 0-1) */
+//    uint8_t debounce_time : 4;      /* Debounce time in scan cycles (range: 0-15) */
+//    uint8_t repeat_time : 5;        /* Repeat click interval in scan cycles (range: 0-31) */
+//    uint8_t repeat_count : 4;       /* Repeat click counter (range: 0-15) */
+//    uint16_t ticks;                 /* Timer ticks */
+//    uint16_t long_time;             /* Long press time in scan cycles */
+//    uint8_t hold_time;              /* Long press hold trigger period in scan cycles */
+//    key_callback cb_func[KEY_EVENT_NUM];  /* Event callback function array */
 } key_t;
 
 /* Exported variables --------------------------------------------------------*/
 /* Exported functions --------------------------------------------------------*/
+int key_device_register(key_t *key);
 int key_init(void);
 key_t *key_find(const char *name);
 void key_attach(key_t *key, enum key_event event, key_callback cb_func);
 void key_detach(key_t *key, enum key_event event);
 void key_start(key_t *key);
 void key_stop(key_t *key);
+
+void key_irq_handle(void *args);
 
 #ifdef __cplusplus
 }
