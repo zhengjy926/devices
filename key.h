@@ -76,7 +76,6 @@ typedef enum key_state {
 typedef struct {
     uint8_t id;                 // 哪个按键
     key_event_t event;          // 发生了什么事件
-    uint32_t timestamp;         // 何时发生 (RTOS tick)
 } key_event_msg_t;
 
 /* Exported typedef ----------------------------------------------------------*/
@@ -88,43 +87,28 @@ struct key_dev; /* 前向声明 */
  * @brief Key device structure
  */
 typedef struct key_dev {
-    
-    uint32_t (*read_state)(struct key_dev *self);   /**< 读取按键的原始物理状态的函数指针 */
-    
     uint8_t id;                     /**< 按键唯一ID */
     void *hw_context;               /**< 指向驱动私有配置数据的指针 */
     key_state_t state;              /**< Current state */
-    uint16_t debounce_integrator;   /**< 消抖积分器 */
+    uint8_t current_level;
+    uint8_t last_level;
     list_t  node;                   /**< 链表节点 */
-
     
-//    const char *key_name;           /* Key name */
-//    const char *pin_name;           /* Key pin name */
-//    size_t pin;                     /* Key GPIO pin */
-//    list_t node;                    /* Key device list node */
-//    uint8_t active_level : 1;       /* Active level (range: 0-1) */
-//    uint8_t state : 2;              /* Current state (range: 0-3) */
-//    uint8_t last_level : 1;         /* Last level state (range: 0-1) */
-//    uint8_t debounce_time : 4;      /* Debounce time in scan cycles (range: 0-15) */
-//    uint8_t repeat_time : 5;        /* Repeat click interval in scan cycles (range: 0-31) */
-//    uint8_t repeat_count : 4;       /* Repeat click counter (range: 0-15) */
-//    uint16_t ticks;                 /* Timer ticks */
-//    uint16_t long_time;             /* Long press time in scan cycles */
-//    uint8_t hold_time;              /* Long press hold trigger period in scan cycles */
-//    key_callback cb_func[KEY_EVENT_NUM];  /* Event callback function array */
+    uint8_t debounce_time : 4;      /* Debounce time in scan cycles (range: 0-15) */
+    uint8_t repeat_time : 5;        /* Repeat click interval in scan cycles (range: 0-31) */
+    uint8_t repeat_count : 4;       /* Repeat click counter (range: 0-15) */
+    uint16_t ticks;                 /* Timer ticks */
+    uint16_t long_time;             /* Long press time in scan cycles */
+    uint8_t hold_time;              /* Long press hold trigger period in scan cycles */
+    
+    uint32_t (*read_state)(struct key_dev *self);   /**< 读取按键的原始物理状态的函数指针 */
 } key_t;
 
 /* Exported variables --------------------------------------------------------*/
 /* Exported functions --------------------------------------------------------*/
-int key_device_register(key_t *key);
-int key_init(void);
-key_t *key_find(const char *name);
-void key_attach(key_t *key, enum key_event event, key_callback cb_func);
-void key_detach(key_t *key, enum key_event event);
-void key_start(key_t *key);
-void key_stop(key_t *key);
-
-void key_irq_handle(void *args);
+int  key_device_register(key_t *key);
+int  key_init(void);
+void key_fsm_handle(key_t *key);
 
 #ifdef __cplusplus
 }

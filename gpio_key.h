@@ -26,8 +26,9 @@
 /* Exported typedef ----------------------------------------------------------*/
 /* 轮询式GPIO按键的私有配置结构体 */ 
 typedef struct {
-    uint16_t      pin_id;       // GPIO pin 引脚编号
-    uint8_t       active_low;   // 是否为低电平有效
+    uint16_t      pin_id;               // GPIO pin 引脚编号
+    uint8_t       active_low;           // 是否为低电平有效
+    uint16_t      debounce_integrator;  /**< 消抖积分器 */
 } gpio_key_cfg_t;
 
 typedef enum {
