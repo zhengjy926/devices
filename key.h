@@ -78,6 +78,11 @@ typedef struct {
     key_event_t event;          // 发生了什么事件
 } key_event_msg_t;
 
+typedef struct {
+    uint8_t id;                 // 哪个按键
+    uint8_t level;              // 按下还是没按下
+} key_level_msg_t;
+
 /* Exported typedef ----------------------------------------------------------*/
 typedef void (*key_callback)(void *);   /* Key callback function type */
 
@@ -90,8 +95,8 @@ typedef struct key_dev {
     uint8_t id;                     /**< 按键唯一ID */
     void *hw_context;               /**< 指向驱动私有配置数据的指针 */
     key_state_t state;              /**< Current state */
-    uint8_t current_level;
-    uint8_t last_level;
+    volatile uint8_t current_level;
+    volatile uint8_t last_level;
     list_t  node;                   /**< 链表节点 */
     
     uint8_t debounce_time : 4;      /* Debounce time in scan cycles (range: 0-15) */
@@ -108,7 +113,9 @@ typedef struct key_dev {
 /* Exported functions --------------------------------------------------------*/
 int  key_device_register(key_t *key);
 int  key_init(void);
-void key_fsm_handle(key_t *key);
+int  key_get_event(key_event_msg_t *msg);
+void key_start(key_t *key);
+void key_stop(key_t *key);
 
 #ifdef __cplusplus
 }

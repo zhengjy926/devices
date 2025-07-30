@@ -1,51 +1,38 @@
 /**
   ******************************************************************************
-  * @file        : gpio_key.h
+  * @file        : xxx.h
   * @author      : ZJY
   * @version     : V1.0
-  * @date        : 2024-09-26
-  * @brief       : GPIO Key Driver Implementation
+  * @date        : 20xx-xx-xx
+  * @brief       : 
   * @attention   : None
   ******************************************************************************
   * @history     :
-  *         V1.0 : Implementation of GPIO-based key driver
+  *         V1.0 : 1.xxx
   ******************************************************************************
   */
-#ifndef __GPIO_KEY_H__
-#define __GPIO_KEY_H__
+#ifndef __xx_xx_H__
+#define __xx_xx_H__
 
 #ifdef __cplusplus
  extern "C" {
 #endif /* __cplusplus */
 
 /* Includes ------------------------------------------------------------------*/
-#include "key.h"
 
 /* Exported define -----------------------------------------------------------*/
 
 /* Exported typedef ----------------------------------------------------------*/
-/* 轮询式GPIO按键的私有配置结构体 */ 
-typedef struct {
-    uint16_t      pin_id;                   // GPIO pin 引脚编号
-    uint8_t       active_low;               // 是否为低电平有效
-    volatile uint16_t debounce_integrator;  /**< 消抖积分器 */
-} gpio_key_cfg_t;
-
-typedef enum {
-    GPIO_KEY_MODE_POLL,
-    GPIO_KEY_MODE_IRQ
-} gpio_key_mode_t;
 
 /* Exported macro ------------------------------------------------------------*/
 
 /* Exported variable prototypes ----------------------------------------------*/
 
 /* Exported function prototypes ----------------------------------------------*/
-int gpio_key_register(key_t *dev, uint8_t id, gpio_key_cfg_t* cfg);
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
-#endif /* __GPIO_KEY_H__ */
+#endif /* __xx_xx_H__ */
 
