@@ -11,8 +11,8 @@
   *         V1.0 : 1.xxx
   ******************************************************************************
   */
-#ifndef __xx_xx_H__
-#define __xx_xx_H__
+#ifndef __TOUCH_KEY_H__
+#define __TOUCH_KEY_H__
 
 #ifdef __cplusplus
  extern "C" {
@@ -34,5 +34,5 @@
 }
 #endif /* __cplusplus */
 
-#endif /* __xx_xx_H__ */
+#endif /* __TOUCH_KEY_H__ */
 

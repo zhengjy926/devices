@@ -78,35 +78,32 @@ typedef struct {
     key_event_t event;          // 发生了什么事件
 } key_event_msg_t;
 
-typedef struct {
-    uint8_t id;                 // 哪个按键
-    uint8_t level;              // 按下还是没按下
-} key_level_msg_t;
-
 /* Exported typedef ----------------------------------------------------------*/
 typedef void (*key_callback)(void *);   /* Key callback function type */
 
 struct key_dev; /* 前向声明 */
 
 /**
- * @brief Key device structure
+ * @brief Key Device Structure
  */
 typedef struct key_dev {
-    uint8_t id;                     /**< 按键唯一ID */
-    void *hw_context;               /**< 指向驱动私有配置数据的指针 */
-    key_state_t state;              /**< Current state */
-    volatile uint8_t current_level;
-    volatile uint8_t last_level;
-    list_t  node;                   /**< 链表节点 */
+    uint8_t id;                     /**< Unique ID for the key */
+    key_state_t state;              /**< Current state in the finite state machine */
+    uint8_t last_level;             /**< Last stable physical level (0 or 1) after debounce */
+    list_t node;                    /**< Linked list node for the active key list */
+
+    /* Timing parameters in multiples of KEY_SCAN_PERIOD_MS */
+    uint16_t long_time;             /**< Time until a press becomes a long press */
+    uint8_t hold_time;              /**< Period for generating hold events */
+    uint8_t debounce_time;          /**< Time required for a level change to be considered stable */
+    uint8_t repeat_time;            /**< Maximum time between presses for a repeat click */
     
-    uint8_t debounce_time : 4;      /* Debounce time in scan cycles (range: 0-15) */
-    uint8_t repeat_time : 5;        /* Repeat click interval in scan cycles (range: 0-31) */
-    uint8_t repeat_count : 4;       /* Repeat click counter (range: 0-15) */
-    uint16_t ticks;                 /* Timer ticks */
-    uint16_t long_time;             /* Long press time in scan cycles */
-    uint8_t hold_time;              /* Long press hold trigger period in scan cycles */
-    
-    uint32_t (*read_state)(struct key_dev *self);   /**< 读取按键的原始物理状态的函数指针 */
+    /* Internal state counters */
+    uint16_t ticks;                 /**< Timer tick counter for the current state */
+    uint8_t repeat_count;           /**< Counter for repeat clicks */
+
+    void *hw_context;               /**< Pointer to hardware-specific context (e.g., GPIO pin info) */
+    uint32_t (*read_state)(struct key_dev *self); /**< Function pointer to read the key's raw physical state */
 } key_t;
 
 /* Exported variables --------------------------------------------------------*/

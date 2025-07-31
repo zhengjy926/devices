@@ -29,7 +29,7 @@
 static LIST_HEAD(key_list);                 /* Key device list head */
 static stimer_t key_scan_timer = {0};       /* Key scan timer */
 
-key_level_msg_t event_fifo_buf[16] = {0};
+key_event_msg_t event_fifo_buf[16] = {0};
 kfifo_t event_fifo;
 /* Exported variables  -------------------------------------------------------*/
 
@@ -94,6 +94,11 @@ void key_stop(key_t *key)
         return;
 
     list_del(&key->node);
+    
+    /* If the list of keys is empty, stop the timer to save power. */
+    if (list_empty(&key_list)) {
+        stimer_stop(&key_scan_timer);
+    }
 }
 
 /* Private functions ---------------------------------------------------------*/
