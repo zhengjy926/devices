@@ -17,6 +17,11 @@
 /* Includes ------------------------------------------------------------------*/
 #include "pwm.h"
 #include <string.h>
+
+#define  LOG_TAG             "main"
+#define  LOG_LVL             7
+#include "log.h"
+
 /* Private typedef -----------------------------------------------------------*/
 
 /* Private define ------------------------------------------------------------*/
@@ -37,16 +42,17 @@ LIST_HEAD(pwm_device_list);	/**< 全局 PWM 设备链表头 */
  * @param pwm: PWM设备指针
  * @param state: 要设置的状态参数
  * @return 成功返回0，失败返回负的错误码
- * 
- * 原子地将新状态应用到PWM设备，不能在原子上下文中使用
  */
 int pwm_set(struct pwm_device *pwm, const struct pwm_state *state)
 {
 	int err;
-	struct pwm_chip *chip;
+	struct pwm_controller *chip;
     
-	if (!pwm || !state)
-		return -EINVAL;
+	if (!pwm || !state) {
+        LOG_E("pwm or state is null!\r\n");
+        return -EINVAL;
+    }
+		
     
     chip = pwm->chip;
     if (!chip || !chip->ops || !chip->ops->set)
@@ -77,7 +83,7 @@ int pwm_set(struct pwm_device *pwm, const struct pwm_state *state)
 int pwm_enable(struct pwm_device *pwm)
 {
     int err;
-    struct pwm_chip *chip;
+    struct pwm_controller *chip;
     
     if (!pwm)
         return -EINVAL;
@@ -106,7 +112,7 @@ int pwm_enable(struct pwm_device *pwm)
 int pwm_disable(struct pwm_device *pwm)
 {
     int err;
-    struct pwm_chip *chip;
+    struct pwm_controller *chip;
     
     if (!pwm)
         return -EINVAL;
@@ -137,7 +143,7 @@ int pwm_disable(struct pwm_device *pwm)
 int pwm_capture(struct pwm_device *pwm, struct pwm_capture *result,
 		       unsigned long timeout)
 {
-	struct pwm_chip *chip;
+	struct pwm_controller *chip;
 	const struct pwm_ops *ops;
 	
 	if (!pwm || !result)
@@ -162,7 +168,7 @@ int pwm_capture(struct pwm_device *pwm, struct pwm_capture *result,
  * @param name: 设备名称
  * @return 成功返回设备指针，失败返回NULL
  */
-struct pwm_device* pwm_find(const char *name)
+struct pwm_device* pwm_get(const char *name)
 {
 	list_t *node;
 	struct pwm_device *dev;
