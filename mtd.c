@@ -6,7 +6,7 @@
   * @version     : V1.0
   * @data        : 20xx-xx-xx
   * @brief       : 
-  * @attattention: None
+  * @attention   : None
   ******************************************************************************
   * @history     :
   *         V1.0 : 1.xxx
@@ -18,12 +18,19 @@
 #include "mtd.h"
 #include <stddef.h>
 #include <string.h>
+
 /* Private typedef -----------------------------------------------------------*/
+
 /* Private define ------------------------------------------------------------*/
+
 /* Private macro -------------------------------------------------------------*/
+
 /* Private variables ---------------------------------------------------------*/
+
 /* Exported variables  -------------------------------------------------------*/
+
 /* Private function prototypes -----------------------------------------------*/
+
 /* Exported functions --------------------------------------------------------*/
 static int mtd_read_oob_std(struct mtd_info *mtd, uint32_t from,
 			    struct mtd_oob_ops *ops)

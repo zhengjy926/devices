@@ -16,7 +16,10 @@
 #include "serial.h"
 #include <string.h>
 #include "cmsis_compiler.h"
-#include <assert.h>
+
+#define  LOG_TAG             "serial"
+#define  LOG_LVL             4
+#include "log.h"
 
 /* Private variables ---------------------------------------------------------*/
 LIST_HEAD(serial_list);                    /* serial list head */
