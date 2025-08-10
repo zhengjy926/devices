@@ -1,30 +1,35 @@
 /**
   ******************************************************************************
-  * @copyright   : Copyright To Hangzhou Dinova EP Technology Co.,Ltd
-  * @file        : xxxx.c
+  * @file        : adc.c
   * @author      : ZJY
   * @version     : V1.0
-  * @data        : 20xx-xx-xx
-  * @brief       : 
-  * @attattention: None
+  * @date        : 2024-09-26
+  * @brief       : xxx
+  * @attention   : xxx
   ******************************************************************************
   * @history     :
-  *         V1.0 : 1.xxx
-  *
-  *
+  *         V1.0 : 
   ******************************************************************************
   */
 /* Includes ------------------------------------------------------------------*/
 #include "adc.h"
+
 /* Private typedef -----------------------------------------------------------*/
+
 /* Private define ------------------------------------------------------------*/
+
 /* Private macro -------------------------------------------------------------*/
+
 /* Private variables ---------------------------------------------------------*/
+
 /* Exported variables  -------------------------------------------------------*/
+
 /* Private function prototypes -----------------------------------------------*/
+
 /* Exported functions --------------------------------------------------------*/
+
 /* Private functions ---------------------------------------------------------*/
-static size_t _adc_read(device_t *dev, int pos, void *buffer, size_t size)
+size_t adc_read(device_t *dev, int pos, void *buffer, size_t size)
 {
     int32_t result = 0;
     size_t i;
@@ -106,11 +111,13 @@ int32_t hw_adc_register(adc_device_t device, const char *name, const struct adc_
     return result;
 }
 
-uint32_t adc_read(adc_device_t dev, int8_t channel)
+uint32_t adc_read(adc_t dev, int8_t channel);
 {
     uint32_t value;
 
-//    ASSERT(dev);
+    if (!dev) {
+        return 0;
+    }
 
     dev->ops->convert(dev, channel, &value);
 

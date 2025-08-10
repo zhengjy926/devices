@@ -169,7 +169,7 @@ int mtd_read_oob(struct mtd_info *mtd, uint64_t from, struct mtd_oob_ops *ops)
 		return 0;	/* device lacks ecc */
 	if (ops->stats)
 		ops->stats->max_bitflips = ret_code;
-	return ret_code >= mtd->bitflip_threshold ? -EIO : 0;
+	return ((unsigned int)ret_code >= mtd->bitflip_threshold) ? -EIO : 0;
 }
 
 int mtd_read(struct mtd_info *mtd, uint64_t from, size_t len, size_t *retlen, uint8_t *buf)
