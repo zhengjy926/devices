@@ -18,8 +18,8 @@
 #include "pwm.h"
 #include <string.h>
 
-#define  LOG_TAG             "main"
-#define  LOG_LVL             7
+#define  LOG_TAG             "pwm"
+#define  LOG_LVL             4
 #include "log.h"
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,131 +37,116 @@ LIST_HEAD(pwm_device_list);	/**< 全局 PWM 设备链表头 */
 /* Exported functions --------------------------------------------------------*/
 
 /* Private functions ---------------------------------------------------------*/
-/**
- * @brief 设置PWM设备的参数
- * @param pwm: PWM设备指针
- * @param state: 要设置的状态参数
- * @return 成功返回0，失败返回负的错误码
- */
-int pwm_set(struct pwm_device *pwm, const struct pwm_state *state)
+static bool pwm_state_valid(const struct pwm_state *state)
 {
+	/*
+	 * For a disabled state all other state description is irrelevant and
+	 * and supposed to be ignored. So also ignore any strange values and
+	 * consider the state ok.
+	 */
+	if (!state->enabled)
+		return true;
+
+	if (!state->period)
+		return false;
+
+	if (state->duty_cycle > state->period)
+		return false;
+
+	return true;
+}
+
+static int __pwm_apply(struct pwm_device *pwm, const struct pwm_state *state)
+{
+	struct pwm_chip *chip;
+	const struct pwm_ops *ops;
 	int err;
-	struct pwm_controller *chip;
-    
-	if (!pwm || !state) {
-        LOG_E("pwm or state is null!\r\n");
-        return -EINVAL;
-    }
-		
-    
-    chip = pwm->chip;
-    if (!chip || !chip->ops || !chip->ops->set)
-        return -EINVAL;
-    
-    if (!state->period || state->duty_cycle > state->period)
-        return -EINVAL;
+
+	if (!pwm || !state)
+		return -EINVAL;
+
+	if (!pwm_state_valid(state)) {
+		/*
+		 * Allow to transition from one invalid state to another.
+		 * This ensures that you can e.g. change the polarity while
+		 * the period is zero. (This happens on stm32 when the hardware
+		 * is in its poweron default state.) This greatly simplifies
+		 * working with the sysfs API where you can only change one
+		 * parameter at a time.
+		 */
+		if (!pwm_state_valid(&pwm->state)) {
+			pwm->state = *state;
+			return 0;
+		}
+
+		return -EINVAL;
+	}
+
+	chip = pwm->chip;
+	ops = chip->ops;
 
 	if (state->period == pwm->state.period &&
 	    state->duty_cycle == pwm->state.duty_cycle &&
-	    state->polarity == pwm->state.polarity)
+	    state->polarity == pwm->state.polarity &&
+	    state->enabled == pwm->state.enabled &&
+	    state->usage_power == pwm->state.usage_power)
 		return 0;
 
-    err = chip->ops->set(chip, pwm, state);
+    err = ops->apply(chip, pwm, state);
     if (err)
         return err;
-    
+
     pwm->state = *state;
 
 	return 0;
 }
 
 /**
- * @brief 使能PWM输出
- * @param pwm: PWM设备指针
- * @return 成功返回0，失败返回负的错误码
+ * pwm_apply_atomic() - apply a new state to a PWM device from atomic context
+ * Not all PWM devices support this function, check with pwm_might_sleep().
+ * @pwm: PWM device
+ * @state: new state to apply
+ *
+ * Returns: 0 on success, or a negative errno
+ * Context: Any
  */
-int pwm_enable(struct pwm_device *pwm)
+int pwm_apply(struct pwm_device *pwm, const struct pwm_state *state)
 {
-    int err;
-    struct pwm_controller *chip;
-    
-    if (!pwm)
-        return -EINVAL;
-        
-    chip = pwm->chip;
-    if (!chip || !chip->ops || !chip->ops->enable)
-        return -EINVAL;
-
-    if (pwm->enabled)
-        return 0;
-
-    err = chip->ops->enable(chip, pwm);
-    if (err)
-        return err;
-
-    pwm->enabled = true;
-
-    return 0;
-}
-
-/**
- * @brief 禁用PWM输出
- * @param pwm: PWM设备指针
- * @return 成功返回0，失败返回负的错误码
- */
-int pwm_disable(struct pwm_device *pwm)
-{
-    int err;
-    struct pwm_controller *chip;
-    
-    if (!pwm)
-        return -EINVAL;
-        
-    chip = pwm->chip;
-    if (!chip || !chip->ops || !chip->ops->disable)
-        return -EINVAL;
-
-    if (!pwm->enabled)
-        return 0;
-
-    err = chip->ops->disable(chip, pwm);
-    if (err)
-        return err;
-
-    pwm->enabled = false;
-
-    return 0;
-}
-
-/**
- * @brief 捕获PWM信号
- * @param pwm: PWM设备指针
- * @param result: 用于存储捕获结果的结构体指针
- * @param timeout: 等待捕获的超时时间（毫秒）
- * @return 成功返回0，失败返回负的错误码
- */
-int pwm_capture(struct pwm_device *pwm, struct pwm_capture *result,
-		       unsigned long timeout)
-{
-	struct pwm_controller *chip;
-	const struct pwm_ops *ops;
-	
-	if (!pwm || !result)
-	    return -EINVAL;
-	    
-	chip = pwm->chip;
-	if (!chip)
-	    return -EINVAL;
+	struct pwm_chip *chip = pwm->chip;
 
 	if (!chip->operational)
 		return -ENODEV;
-		
-	ops = chip->ops;
-	if (!ops || !ops->capture)
-	    return -ENOSYS;
 
-	return ops->capture(chip, pwm, result, timeout);
+	return __pwm_apply(pwm, state);
 }
+
+/**
+ * pwm_get_state_hw() - get the current PWM state from hardware
+ * @pwm: PWM device
+ * @state: state to fill with the current PWM state
+ *
+ * Similar to pwm_get_state() but reads the current PWM state from hardware
+ * instead of the requested state.
+ *
+ * Returns: 0 on success or a negative error code on failure.
+ * Context: May sleep.
+ */
+int pwm_get_state_hw(struct pwm_device *pwm, struct pwm_state *state)
+{
+	struct pwm_chip *chip = pwm->chip;
+	const struct pwm_ops *ops = chip->ops;
+	int ret = -ENOTSUPP;
+
+	if (!chip->operational)
+		return -ENODEV;
+
+    if (ops->get_state) {
+		ret = ops->get_state(chip, pwm, state);
+	}
+
+	return ret;
+}
+
 
 /**
  * @brief 根据名称查找PWM设备
@@ -178,7 +163,7 @@ struct pwm_device* pwm_get(const char *name)
 
 	list_for_each(node, &pwm_device_list) {
 		dev = list_entry(node, struct pwm_device, node);
-		if (strcmp(dev->name, name) == 0)
+		if (strcmp(dev->label, name) == 0)
 			return dev;
 	}
 	return NULL;
@@ -197,19 +182,18 @@ int pwm_register_device(struct pwm_device *pwm)
     if (!pwm)
         return -EINVAL;
         
-    if (!pwm->name || !pwm->chip)
+    if (!pwm->label || !pwm->chip)
         return -EINVAL;
 
-    /* 检查是否已存在（可根据label或channel唯一性） */
+    /* 检查是否已存在 */
     list_for_each(node, &pwm_device_list) {
         dev = list_entry(node, struct pwm_device, node);
-        if (dev == pwm || (dev->channel == pwm->channel && dev->chip == pwm->chip)) {
+        if (dev == pwm || (dev->hwpwm == pwm->hwpwm && dev->chip == pwm->chip)) {
             return -EEXIST; // 已存在
         }
     }
 
     list_node_init(&pwm->node);
     list_add_tail(&pwm->node, &pwm_device_list);
-
     return 0;
 }
