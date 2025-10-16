@@ -21,9 +21,10 @@
 #endif /* __cplusplus */
 
 /* Includes ------------------------------------------------------------------*/
-#include "sys_def.h"
 #include "my_list.h"
 #include "mymath.h"
+#include "errno-base.h"
+#include <stdbool.h>
 
 /* Exported define -----------------------------------------------------------*/
 

@@ -19,7 +19,7 @@
 #endif /* __cplusplus */
 
 /* Includes ------------------------------------------------------------------*/
-#include "sys_def.h"
+#include <stdint.h>
 
 /* Exported define -----------------------------------------------------------*/
 #define DEVICE_CTRL_WDT_GET_TIMEOUT    ((29 * 0x100) + 1) /* get timeout(in seconds) */

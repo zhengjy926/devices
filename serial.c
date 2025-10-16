@@ -14,6 +14,7 @@
   */
 /* Includes ------------------------------------------------------------------*/
 #include "serial.h"
+#include "errno-base.h"
 #include <string.h>
 #include "cmsis_compiler.h"
 

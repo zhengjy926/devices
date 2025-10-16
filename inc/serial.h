@@ -20,7 +20,6 @@
 #endif /* __cplusplus */
 
 /* Includes ------------------------------------------------------------------*/
-#include "sys_def.h"
 #include "kfifo.h"
 #include "my_list.h"
 

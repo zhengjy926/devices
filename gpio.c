@@ -15,7 +15,9 @@
   */
 /* Includes ------------------------------------------------------------------*/
 #include "gpio.h"
+#include "errno-base.h"
 #include <assert.h>
+#include <stddef.h>
 
 /* Private typedef -----------------------------------------------------------*/
 
