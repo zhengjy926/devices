@@ -14,8 +14,8 @@
   */
 /* Includes ------------------------------------------------------------------*/
 #include "leds.h"
+#include "errno-base.h"
 #include "minmax.h"
-#include "my_list.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -112,7 +112,7 @@ static void led_timer_function(void *arg)
 		}
 	}
 
-	osTimerStart(&led_cdev->blink_timer, delay);
+//	osTimerStart(&led_cdev->blink_timer, delay);
 }
 
 static void set_brightness_delayed_set_brightness(struct led_classdev *led_cdev,

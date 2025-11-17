@@ -22,6 +22,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "kfifo.h"
 #include "my_list.h"
+#include <stdbool.h>
 
 #if USING_RTOS
     #include "FreeRTOS.h"
@@ -121,31 +122,16 @@ typedef struct serial_ops
     int (*send)(struct serial *port, const void *buf, size_t size);      ///< Send data to the serial port
     int (*start_rx)(struct serial *port);                                ///< Start the receive operation
     int (*configure)(struct serial *port, struct serial_configure *cfg); ///< Configure serial parameters
+    bool (*tx_is_busy)(struct serial *port);
 } serial_ops_t;
-
-/**
- * @brief Serial flags structure
- */
-typedef struct serial_flags {
-    uint32_t initialized      : 1;        ///< Serial initialized flag
-    uint32_t use_dma          : 1;        ///< Use DMA flag
-    uint32_t tx_busy          : 1;        ///< Transmitter busy flag
-    uint32_t rx_busy          : 1;        ///< Receiver busy flag
-    uint32_t tx_underflow     : 1;        ///< Transmit data underflow detected (cleared on start of next send operation)
-    uint32_t rx_overflow      : 1;        ///< Receive data overflow detected (cleared on start of next receive operation)
-    uint32_t rx_break         : 1;        ///< Break detected on receive (cleared on start of next receive operation)
-    uint32_t rx_framing_error : 1;        ///< Framing error detected on receive (cleared on start of next receive operation)
-    uint32_t rx_parity_error  : 1;        ///< Parity error detected on receive (cleared on start of next receive operation)
-    uint32_t reserved         : 23;       ///< Reserved
-} serial_flags_t;
 
 /**
  * @brief Serial device structure
  */
 typedef struct serial{
     char name[SERIAL_NAME_MAX];         ///< Serial name
+    volatile uint8_t opened;            
     const serial_ops_t *ops;            ///< Low-level operation function pointer
-    volatile serial_flags_t flags;      ///< Serial flags
     struct serial_configure config;     ///< Current serial configuration
     size_t rx_bufsz;                    ///< The size of rx buffer
     size_t tx_bufsz;                    ///< The size of tx buffer
@@ -154,15 +140,8 @@ typedef struct serial{
     kfifo_t rx_fifo;                    ///< rx fifo
     kfifo_t tx_fifo;                    ///< tx fifo
     volatile size_t current_tx_len;     ///< The length of current tx data
-    list_t node;                       ///< Node of serial list
+    list_t node;                        ///< Node of serial list
     void *prv_data;                     ///< Private data
-    
-#if USING_RTOS
-    TaskHandle_t tx_task;               ///< Task handle of tx task
-    SemaphoreHandle_t tx_sem;          ///< Semaphore for TX task synchronization
-    SemaphoreHandle_t write_mutex;     ///< Mutex for protecting serial_write
-    SemaphoreHandle_t read_mutex;      ///< Mutex for protecting serial_read
-#endif
 }serial_t;
 
 /* Exported macro ------------------------------------------------------------*/
@@ -174,10 +153,12 @@ typedef struct serial{
  * @brief Serial device management functions
  */
 serial_t* serial_find    (const char *name);
-int       serial_init    (serial_t *port);
+int       serial_open    (serial_t *port);
+void      serial_close   (serial_t *port);
+int       serial_read    (serial_t *port, void *buffer, size_t size);
+int       serial_write   (serial_t *port, const void *buffer, size_t size);
 int       serial_control (serial_t *port, int cmd, void *arg);
-ssize_t   serial_read    (serial_t *port, void *buffer, size_t size);
-ssize_t   serial_write   (serial_t *port, const void *buffer, size_t size);
+
 
 /**
  * @brief Hardware-specific functions (called by low-level drivers)

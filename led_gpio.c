@@ -18,6 +18,7 @@
 #include "gpio.h"
 #include <string.h>
 #include <stdlib.h>
+#include "errno-base.h"
 
 /* Private typedef -----------------------------------------------------------*/
 
@@ -56,9 +57,9 @@ static void gpio_led_brightness_set_impl(struct led_classdev *led_cdev, enum led
     
     /* 根据亮度值确定GPIO输出状态 */
     if (brightness > LED_OFF) {
-        gpio_value = gpio_led->active_low ? PIN_LOW : PIN_HIGH;
+        gpio_value = gpio_led->active_low ? 0 : 1;
     } else {
-        gpio_value = gpio_led->active_low ? PIN_HIGH : PIN_LOW;
+        gpio_value = gpio_led->active_low ? 1 : 0;
     }
     
     /* 设置GPIO输出 */
@@ -86,9 +87,9 @@ static enum led_brightness gpio_led_brightness_get_impl(struct led_classdev *led
     
     /* 根据active_low标志判断LED状态 */
     if (gpio_led->active_low) {
-        return (gpio_value == PIN_LOW) ? LED_ON : LED_OFF;
+        return (gpio_value == 0) ? LED_ON : LED_OFF;
     } else {
-        return (gpio_value == PIN_HIGH) ? LED_ON : LED_OFF;
+        return (gpio_value == 1) ? LED_ON : LED_OFF;
     }
 }
 
@@ -114,7 +115,7 @@ static int gpio_led_hw_init(struct gpio_led_device *gpio_led)
     gpio_led->gpio_pin = gpio_pin;
     
     /* 配置GPIO为输出模式 */
-    gpio_set_mode(gpio_pin, PIN_MODE_OUTPUT_PP, PIN_PULL_RESISTOR_NONE);
+    gpio_set_mode(gpio_pin, PIN_OUTPUT_PP, PIN_PULL_NONE);
     
     return 0;
 }
@@ -202,7 +203,7 @@ struct led_classdev *gpio_led_create(const struct gpio_led_config *config)
     memset(gpio_led, 0, sizeof(struct gpio_led_device));
     
     /* 配置GPIO为输出模式 */
-    gpio_set_mode(gpio_pin, PIN_MODE_OUTPUT_PP, PIN_PULL_RESISTOR_NONE);
+    gpio_set_mode(gpio_pin, PIN_OUTPUT_PP, PIN_PULL_NONE);
     
     /* 初始化GPIO LED设备 */
     gpio_led->gpio_pin = gpio_pin;

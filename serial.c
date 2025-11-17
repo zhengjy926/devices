@@ -47,6 +47,7 @@ serial_t* serial_find(const char *name)
     
     /* Parameter check */
     if (name == NULL) {
+        LOG_E("serial name is NULL");
         return NULL;
     }
     
@@ -57,6 +58,7 @@ serial_t* serial_find(const char *name)
             return dev;
         }
     }
+    
     return NULL;
 }
 
@@ -67,12 +69,17 @@ serial_t* serial_find(const char *name)
   *         -EINVAL invalid parameter
   *         -EIO I/O error
   */
-int serial_init(serial_t *port)
+int serial_open(serial_t *port)
 {
     int ret = 0;
     
     if (!port) {
+        LOG_E("");
         return -EINVAL;
+    }
+    
+    if (port->opened) {
+        return 0;
     }
     
     if (!port->ops || !port->ops->init) {
@@ -81,10 +88,6 @@ int serial_init(serial_t *port)
 
     if (!port->rx_buf || port->rx_bufsz == 0 || !port->tx_buf || port->tx_bufsz == 0) {
         return -EINVAL;
-    }
-    
-    if (port->flags.initialized) {
-        return 0;
     }
     
     /* Initialize hardware */
@@ -105,39 +108,13 @@ int serial_init(serial_t *port)
     /* Initialize configuration with default values */
     struct serial_configure default_cfg = SERIAL_CONFIG_DEFAULT;
     port->config = default_cfg;
-    
-#if USING_RTOS
-    /* Create FreeRTOS synchronization objects */
-    port->tx_sem = xSemaphoreCreateBinary();
-    if (!port->tx_sem) {
-        return -ENOMEM;
-    }
-    
-    port->write_mutex = xSemaphoreCreateMutex();
-    if (!port->write_mutex) {
-        vSemaphoreDelete(port->tx_sem);
-        return -ENOMEM;
-    }
-    
-    port->read_mutex = xSemaphoreCreateMutex();
-    if (!port->read_mutex) {
-        vSemaphoreDelete(port->tx_sem);
-        vSemaphoreDelete(port->write_mutex);
-        return -ENOMEM;
-    }
-    
-    /* Create TX task */
-    BaseType_t task_ret = xTaskCreate(serial_tx_task, port->name, 256, port, 
-                                      UART_TX_TASK_PRIORITY, &port->tx_task);
-    if (task_ret != pdPASS) {
-        vSemaphoreDelete(port->tx_sem);
-        vSemaphoreDelete(port->write_mutex);
-        vSemaphoreDelete(port->read_mutex);
-        return -ENOMEM;
-    }
-#endif
-    port->flags.initialized = 1;
+    port->opened = 1;
     return 0;
+}
+
+void serial_close(serial_t *port)
+{
+    
 }
 
 /**
@@ -155,7 +132,7 @@ int serial_control(serial_t *port, int cmd, void *arg)
         return -EINVAL;
     }
     
-    if (!port->flags.initialized) {
+    if (!port->opened) {
         return -EIO;
     }
     
@@ -209,65 +186,15 @@ ssize_t serial_read(serial_t *port, void *buffer, size_t size)
 {
     ssize_t ret = 0;
     
-    if (size == 0)
-        return 0;
-    
-    assert((port != NULL) && (buffer != NULL));
-    
-    if (!port->flags.initialized) {
+    if(!port || !buffer || size == 0) {
+        return -EINVAL;
+    }
+    if (!port->opened) {
         return -EIO;
     }
-    
-#if USING_RTOS
-    // FreeRTOS环境：使用互斥量保护多任务读取
-    if (port->read_mutex) {
-        xSemaphoreTake(port->read_mutex, portMAX_DELAY);
-    }
-    
-    ret = kfifo_out_locked(&port->rx_fifo, buffer, size);
-    
-    if (port->read_mutex) {
-        xSemaphoreGive(port->read_mutex);
-    }
-#else
-    // 裸机环境：直接读取，无需保护（单生产者-单消费者）
     ret = kfifo_out(&port->rx_fifo, buffer, size);
-#endif
-    
     return ret;
 }
-
-#if USING_RTOS
-/**
-  * @brief  Serial TX task for FreeRTOS
-  * @param  arg: pointer to serial device
-  * @retval None
-  */
-static void serial_tx_task(void *arg)
-{
-    serial_t *port = (serial_t *)arg;
-    
-    for(;;)
-    {
-        // 等待发送触发
-        if(xSemaphoreTake(port->tx_sem, portMAX_DELAY) == pdTRUE) {
-            // 获取写入互斥量，防止与写入操作冲突
-            if (xSemaphoreTake(port->write_mutex, portMAX_DELAY) == pdTRUE) {
-                
-                taskENTER_CRITICAL();
-                if(!kfifo_is_empty(&port->tx_fifo) && !port->flags.tx_busy) {
-                    start_transfer(port);
-                    taskEXIT_CRITICAL();
-                    xSemaphoreGive(port->write_mutex);
-                } else {
-                    taskEXIT_CRITICAL();
-                    xSemaphoreGive(port->write_mutex);
-                }
-            }
-        }
-    }
-}
-#endif
 
 /**
   * @brief  Start transfer operation
@@ -289,11 +216,8 @@ static void start_transfer(serial_t *port)
     int hw_ret = port->ops->send(port, &data_ptr[off], len);
     if (hw_ret == 0) {
         port->current_tx_len = len;
-        port->flags.tx_busy = 1;
     } else {
-        /* 硬件忙或失败，不改变 fifo 指针，保持 tx_busy=false 以便重试 */
         port->current_tx_len = 0;
-        // LOG
     }
 }
 
@@ -312,38 +236,18 @@ ssize_t serial_write(serial_t *port, const void *buffer, size_t size)
     if (!port || !buffer || size == 0)
         return -EINVAL;
     
-    if (!port->flags.initialized)
+    if (!port->opened)
         return -EIO;
-
-#if USING_RTOS
-    if (port->write_mutex) {
-        if (xSemaphoreTake(port->write_mutex, portMAX_DELAY) != pdTRUE) return -EIO;
-    }
-
-    /* 插入 FIFO（已保护） */
-    ret = kfifo_in(&port->tx_fifo, buffer, size);
-
-    /* 需要检查是否当前没有发送，触发发送任务 */
-    uint8_t busy = port->flags.tx_busy;
-    if (!busy) {
-        /* 唤醒 tx 任务 */
-        if (port->tx_sem) xSemaphoreGive(port->tx_sem);
-    }
-
-    if (port->write_mutex) xSemaphoreGive(port->write_mutex);
-
-#else
+    
     ret = kfifo_in(&port->tx_fifo, buffer, size);
 
     uint32_t primask = __get_PRIMASK();
     __disable_irq();
-
-    if (!port->flags.tx_busy) {
+    
+    if (port->ops->tx_is_busy(port) == false) {
         start_transfer(port);
     }
-    
     __set_PRIMASK(primask);
-#endif
     return ret;
 }
 
@@ -360,18 +264,11 @@ void hw_serial_tx_done_isr(serial_t *port)
     /* 跳过已发送的数据 */
     kfifo_skip_count(&port->tx_fifo, port->current_tx_len);
     port->current_tx_len = 0;
-    port->flags.tx_busy = 0;
 
-#if USING_RTOS
-    BaseType_t woken = pdFALSE;
-    if (port->tx_sem) xSemaphoreGiveFromISR(port->tx_sem, &woken);
-    portYIELD_FROM_ISR(woken);
-#else
-    /* 裸机：如果还有数据，立即启动下一次发送 */
+    /* 如果还有数据，立即启动下一次发送 */
     if (!kfifo_is_empty(&port->tx_fifo)) {
         start_transfer(port);
     }
-#endif
 }
 
 /**
@@ -388,7 +285,6 @@ void hw_serial_rx_done_isr(serial_t *port, const uint8_t *buf, uint16_t size)
 
     size_t stored = kfifo_in(&port->rx_fifo, buf, size);
     if (stored != size) {
-        port->flags.rx_overflow = 1;
         // LOG
     }
 }

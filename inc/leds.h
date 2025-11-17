@@ -19,8 +19,9 @@
 #endif /* __cplusplus */
 
 /* Includes ------------------------------------------------------------------*/
-#include "sys_def.h"
 #include "bitops.h"
+#include "my_list.h"
+#include "types.h"
 
 #if USING_RTOS
     #include "cmsis_os2.h"
