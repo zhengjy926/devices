@@ -276,8 +276,8 @@ int i2c_add_adapter(struct i2c_adapter *adap,
         return -EINVAL;
     }
     
-    /* Initialize adapter structure */
-    (void)memset(adap, 0, sizeof(struct i2c_adapter));
+//    /* Initialize adapter structure */
+//    (void)memset(adap, 0, sizeof(struct i2c_adapter));
     
     /* Copy name */
     name_len = strlen(name);

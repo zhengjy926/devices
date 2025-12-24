@@ -29,45 +29,20 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-
-/* Memory barrier support */
-/* Use CMSIS definitions if available, otherwise define inline assembly */
-#ifndef __DSB
-#if defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__) || \
-    defined(__ARM_ARCH_8M_MAIN__) || defined(__ARM_ARCH_8M_BASE__)
-/* Try to use CMSIS compiler header which defines these macros */
-#if defined(__GNUC__) || defined(__clang__)
-#include "cmsis_gcc.h"
-#elif defined(__ICCARM__)
-#include "cmsis_iccarm.h"
-#elif defined(__ARMCC_VERSION)
-#include "cmsis_armclang.h"
-#else
-/* Fallback: define inline assembly */
-#define __DSB() __asm volatile("dsb" ::: "memory")
-#define __DMB() __asm volatile("dmb" ::: "memory")
-#define __ISB() __asm volatile("isb" ::: "memory")
-#endif
-#else
-/* Fallback: define inline assembly if CMSIS not available */
-#define __DSB() __asm volatile("dsb" ::: "memory")
-#define __DMB() __asm volatile("dmb" ::: "memory")
-#define __ISB() __asm volatile("isb" ::: "memory")
-#endif
-#endif
+#include "cmsis_compiler.h"
 
 /**
  * @defgroup I2C_Flag_Definitions I2C Flag Definitions
  * @{
  */
 #define I2C_M_RD            (1U<<0)     /**< Read data, from slave to master */
-#define I2C_M_TEN           (1U<<5)      /**< Ten bit chip address */
-#define I2C_M_STOP         (1U<<1)     /**< Send stop after this message */
-#define I2C_M_NOSTART      (1U<<2)     /**< Don't send a start bit */
-#define I2C_M_REV_DIR_ADDR (1U<<3)     /**< Reverse direction of address */
-#define I2C_M_IGNORE_NAK   (1U<<4)     /**< Ignore NAK from slave */
-#define I2C_M_NO_RD_ACK    (1U<<6)     /**< Skip ACK on reads */
-#define I2C_M_RECV_LEN     (1U<<7)     /**< Length will be first received byte */
+#define I2C_M_TEN           (1U<<5)     /**< Ten bit chip address */
+#define I2C_M_STOP          (1U<<1)     /**< Send stop after this message */
+#define I2C_M_NOSTART       (1U<<2)     /**< Don't send a start bit */
+#define I2C_M_REV_DIR_ADDR  (1U<<3)     /**< Reverse direction of address */
+#define I2C_M_IGNORE_NAK    (1U<<4)     /**< Ignore NAK from slave */
+#define I2C_M_NO_RD_ACK     (1U<<6)     /**< Skip ACK on reads */
+#define I2C_M_RECV_LEN      (1U<<7)     /**< Length will be first received byte */
 
 #define I2C_NAME_MAX        (16U)      /**< Maximum length of I2C adapter name */
 /** @} */
@@ -85,17 +60,17 @@
 #define I2C_FUNC_SMBUS_BLOCK_PROC_CALL  (1U<<11) /**< SMBus block process call */
 #define I2C_FUNC_SMBUS_QUICK            (1U<<12) /**< SMBus quick command */
 #define I2C_FUNC_SMBUS_READ_BYTE        (1U<<13) /**< SMBus read byte */
-#define I2C_FUNC_SMBUS_WRITE_BYTE      (1U<<14) /**< SMBus write byte */
-#define I2C_FUNC_SMBUS_READ_BYTE_DATA  (1U<<15) /**< SMBus read byte data */
-#define I2C_FUNC_SMBUS_WRITE_BYTE_DATA (1U<<16) /**< SMBus write byte data */
-#define I2C_FUNC_SMBUS_READ_WORD_DATA  (1U<<17) /**< SMBus read word data */
-#define I2C_FUNC_SMBUS_WRITE_WORD_DATA (1U<<18) /**< SMBus write word data */
-#define I2C_FUNC_SMBUS_PROC_CALL       (1U<<19) /**< SMBus process call */
-#define I2C_FUNC_SMBUS_READ_BLOCK_DATA (1U<<20) /**< SMBus read block data */
+#define I2C_FUNC_SMBUS_WRITE_BYTE       (1U<<14) /**< SMBus write byte */
+#define I2C_FUNC_SMBUS_READ_BYTE_DATA   (1U<<15) /**< SMBus read byte data */
+#define I2C_FUNC_SMBUS_WRITE_BYTE_DATA  (1U<<16) /**< SMBus write byte data */
+#define I2C_FUNC_SMBUS_READ_WORD_DATA   (1U<<17) /**< SMBus read word data */
+#define I2C_FUNC_SMBUS_WRITE_WORD_DATA  (1U<<18) /**< SMBus write word data */
+#define I2C_FUNC_SMBUS_PROC_CALL        (1U<<19) /**< SMBus process call */
+#define I2C_FUNC_SMBUS_READ_BLOCK_DATA  (1U<<20) /**< SMBus read block data */
 #define I2C_FUNC_SMBUS_WRITE_BLOCK_DATA (1U<<21) /**< SMBus write block data */
-#define I2C_FUNC_SMBUS_READ_I2C_BLOCK  (1U<<22) /**< SMBus read I2C block */
-#define I2C_FUNC_SMBUS_WRITE_I2C_BLOCK (1U<<23) /**< SMBus write I2C block */
-#define I2C_FUNC_DMA_SUPPORT           (1U<<24) /**< DMA transfer support */
+#define I2C_FUNC_SMBUS_READ_I2C_BLOCK   (1U<<22) /**< SMBus read I2C block */
+#define I2C_FUNC_SMBUS_WRITE_I2C_BLOCK  (1U<<23) /**< SMBus write I2C block */
+#define I2C_FUNC_DMA_SUPPORT            (1U<<24) /**< DMA transfer support */
 /** @} */
 
 /* Forward declarations */
