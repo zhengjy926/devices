@@ -38,35 +38,29 @@ typedef struct {
 /* Exported constants --------------------------------------------------------*/
 
 /**
- * @defgroup AD5272_Register_Definitions AD5272寄存器定义
+ * @defgroup AD5272_Command_Definitions AD5272命令定义（4位）
  * @{
  */
-#define AD5272_REG_RDAC            (0x00U)  /**< RDAC寄存器地址（读写） */
-#define AD5272_REG_CONTROL         (0x01U)  /**< 控制寄存器地址 */
-#define AD5272_REG_STATUS          (0x02U)  /**< 状态寄存器地址 */
-#define AD5272_REG_50TP_MEMORY     (0x03U)  /**< 50-TP存储器地址 */
+#define AD5272_CMD_NOP              0x00  // 无操作
+#define AD5272_CMD_WRITE_RDAC       0x01  // 写入 RDAC (设置电阻值)
+#define AD5272_CMD_READ_RDAC        0x02  // 读取 RDAC
+#define AD5272_CMD_STORE_50TP       0x03  // 将 RDAC 存入 50-TP 存储器
+#define AD5272_CMD_RESET            0x04  // 软件复位
+#define AD5272_CMD_READ_50TP        0x05  // 读取 50-TP 内容
+#define AD5272_CMD_READ_LAST_ADDR   0x06  // 读取最后编程地址
+#define AD5272_CMD_WRITE_CTRL       0x07  // 写入控制寄存器
+#define AD5272_CMD_READ_CTRL        0x08  // 读取控制寄存器
+#define AD5272_CMD_SHUTDOWN         0x09  // 软件关断
 /** @} */
 
 /**
- * @defgroup AD5272_Command_Definitions AD5272命令定义
+ * @defgroup AD5272_Control_Bits AD5272控制寄存器（10位）位定义
  * @{
  */
-#define AD5272_CMD_WRITE_RDAC      (0x00U)  /**< 写RDAC寄存器命令 */
-#define AD5272_CMD_READ_RDAC       (0x08U)  /**< 读RDAC寄存器命令 */
-#define AD5272_CMD_WRITE_CONTROL   (0x01U)  /**< 写控制寄存器命令 */
-#define AD5272_CMD_READ_CONTROL    (0x09U)  /**< 读控制寄存器命令 */
-#define AD5272_CMD_WRITE_STATUS    (0x02U)  /**< 写状态寄存器命令（保留） */
-#define AD5272_CMD_READ_STATUS     (0x0AU)  /**< 读状态寄存器命令 */
-/** @} */
-
-/**
- * @defgroup AD5272_Control_Bits AD5272控制寄存器位定义
- * @{
- */
-#define AD5272_CTRL_WP_POS         (0U)     /**< 写保护位位置 */
-#define AD5272_CTRL_WP_MASK        (0x01U)  /**< 写保护位掩码 */
-#define AD5272_CTRL_SHDN_POS       (1U)     /**< 关断位位置 */
-#define AD5272_CTRL_SHDN_MASK      (0x02U)  /**< 关断位掩码 */
+#define AD5272_CTRL_50TP_PROGRAM_EN    0x01 // C0: 允许 50-TP 编程 [cite: 137]
+#define AD5272_CTRL_RDAC_WRITE_EN      0x02 // C1: 允许 RDAC 写入 [cite: 137]
+#define AD5272_CTRL_RESISTOR_PERF_DIS  0x04 // C2: 禁用电阻性能模式 [cite: 137]
+#define AD5272_CTRL_50TP_SUCCESS       0x08 // C3: (只读) 编程成功标志 [cite: 137]
 /** @} */
 
 /**
@@ -87,11 +81,17 @@ typedef struct {
 
 int ad5272_init(ad5272_dev_t *dev, uint8_t i2c_addr, const char *adapter_name);
 int ad5272_deinit(ad5272_dev_t *dev);
-int ad5272_set_resistance(ad5272_dev_t *dev, uint16_t position);
-int ad5272_get_resistance(ad5272_dev_t *dev, uint16_t *position);
-int ad5272_set_write_protect(ad5272_dev_t *dev, bool enable);
-int ad5272_read_status(ad5272_dev_t *dev, uint8_t *status);
-int ad5272_shutdown(ad5272_dev_t *dev, bool enable);
+
+int ad5272_NOP(ad5272_dev_t *dev);
+int ad5272_set_RDAC(ad5272_dev_t *dev, uint16_t code);
+int ad5272_get_RDAC(ad5272_dev_t *dev, uint16_t *code);
+int ad5272_store_50TP(ad5272_dev_t *dev);
+int ad5272_software_reset(ad5272_dev_t *dev);
+int ad5272_read_50TP(ad5272_dev_t *dev, uint8_t mem_addr, uint16_t *val);
+int ad5272_get_last_addr(ad5272_dev_t *dev, uint8_t *addr);
+int ad5272_set_control_reg(ad5272_dev_t *dev, uint8_t config);
+int ad5272_get_control_reg(ad5272_dev_t *dev, uint8_t *config);
+int ad5272_set_shutdown(ad5272_dev_t *dev, bool enable);
 
 #ifdef __cplusplus
 }

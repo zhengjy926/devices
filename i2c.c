@@ -30,7 +30,6 @@ static LIST_HEAD(i2c_adapter_list);  /* Adapter list head */
 /* Private define ------------------------------------------------------------*/
 #define I2C_MAX_CLIENTS              (16U)    /**< Maximum number of I2C clients */
 #define I2C_DMA_THRESHOLD            (16U)    /**< Minimum length to use DMA */
-#define I2C_MAX_RETRIES              (3U)     /**< Maximum retry count */
 
 /* Private macro -------------------------------------------------------------*/
 
@@ -44,55 +43,14 @@ static uint8_t i2c_client_used[I2C_MAX_CLIENTS];
 /* Exported variables -------------------------------------------------------*/
 
 /* Private function prototypes -----------------------------------------------*/
-static inline void i2c_adapter_lock(struct i2c_adapter *adap);
-static inline void i2c_adapter_unlock(struct i2c_adapter *adap);
 static int i2c_validate_addr(uint16_t addr, uint16_t flags);
 static int i2c_transfer_internal(struct i2c_adapter *adap,
-                                 struct i2c_client *client,
                                  struct i2c_msg *msgs,
-                                 int num);
+                                 uint32_t num);
 static struct i2c_client *i2c_alloc_client(void);
 static void i2c_free_client(struct i2c_client *client);
 
 /* Exported functions --------------------------------------------------------*/
-
-/**
- * @brief Lock adapter (thread safety)
- * @param adap Adapter pointer
- */
-static inline void i2c_adapter_lock(struct i2c_adapter *adap)
-{
-    if (adap == NULL) {
-        return;
-    }
-    
-    if (adap->lock != NULL) {
-        /* RTOS environment: use mutex */
-        adap->lock(adap->lock_data);
-    } else if (adap->irq_disable != NULL) {
-        /* Bare-metal environment: disable interrupts */
-        adap->irq_disable();
-    }
-}
-
-/**
- * @brief Unlock adapter (thread safety)
- * @param adap Adapter pointer
- */
-static inline void i2c_adapter_unlock(struct i2c_adapter *adap)
-{
-    if (adap == NULL) {
-        return;
-    }
-    
-    if (adap->unlock != NULL) {
-        /* RTOS environment: release mutex */
-        adap->unlock(adap->lock_data);
-    } else if (adap->irq_enable != NULL) {
-        /* Bare-metal environment: enable interrupts */
-        adap->irq_enable();
-    }
-}
 
 /**
  * @brief Validate I2C address
@@ -157,29 +115,23 @@ static void i2c_free_client(struct i2c_client *client)
 }
 
 /**
- * @brief Internal transfer function (noinline to prevent optimization issues)
+ * @brief Internal transfer function
  * @param adap Adapter pointer
- * @param client Client pointer
  * @param msgs Messages array
  * @param num Number of messages
  * @return Number of messages transferred on success, error code on failure
  */
-static int __attribute__((noinline))
-i2c_transfer_internal(struct i2c_adapter *adap,
-                      struct i2c_client *client,
-                      struct i2c_msg *msgs,
-                      int num)
+static int i2c_transfer_internal(struct i2c_adapter *adap,
+                                 struct i2c_msg *msgs,
+                                 uint32_t num)
 {
     int ret = 0;
     int i = 0;
     uint8_t use_dma = 0U;
     uint32_t total_len = 0U;
     
-    if ((adap == NULL) || (client == NULL) || (msgs == NULL) || (num <= 0)) {
-        return -EINVAL;
-    }
-    
-    if ((adap->algo == NULL) || (adap->algo->master_xfer == NULL)) {
+    if (adap->algo->xfer == NULL) {
+        LOG_E("I2C level transfers not supported!");
         return -ENOSYS;
     }
     
@@ -195,53 +147,12 @@ i2c_transfer_internal(struct i2c_adapter *adap,
         }
     }
     
-    /* Check if adapter is in use */
-    i2c_adapter_lock(adap);
-    
-    if (adap->in_use != 0U) {
-        i2c_adapter_unlock(adap);
-        return -EBUSY;
-    }
-    
     adap->in_use = 1U;
     
-    /* Memory barrier to ensure write completes */
-    __DSB();
-    
-    i2c_adapter_unlock(adap);
-    
-    /* Decide whether to use DMA */
-    if ((adap->dma_supported != 0U) && 
-        (adap->dma_enabled != 0U) &&
-        (adap->algo->master_xfer_dma != NULL)) {
-        
-        /* Calculate total transfer length */
-        for (i = 0; i < num; i++) {
-            total_len += (uint32_t)msgs[i].len;
-        }
-        
-        /* Use DMA if total length exceeds threshold */
-        if (total_len >= I2C_DMA_THRESHOLD) {
-            use_dma = 1U;
-        }
-    }
-    
     /* Execute transfer */
-    if (use_dma != 0U) {
-        ret = adap->algo->master_xfer_dma(adap, msgs, num);
-    } else {
-        ret = adap->algo->master_xfer(adap, msgs, num);
-    }
-    
-    /* Mark adapter as not in use */
-    i2c_adapter_lock(adap);
+    ret = adap->algo->xfer(adap, msgs, num);
     
     adap->in_use = 0U;
-    
-    /* Memory barrier to ensure write completes */
-    __DSB();
-    
-    i2c_adapter_unlock(adap);
     
     return ret;
 }
@@ -272,12 +183,9 @@ int i2c_add_adapter(struct i2c_adapter *adap,
     }
     
     /* Validate algo structure */
-    if (algo->master_xfer == NULL) {
+    if (algo->xfer == NULL) {
         return -EINVAL;
     }
-    
-//    /* Initialize adapter structure */
-//    (void)memset(adap, 0, sizeof(struct i2c_adapter));
     
     /* Copy name */
     name_len = strlen(name);
@@ -299,14 +207,6 @@ int i2c_add_adapter(struct i2c_adapter *adap,
     adap->addr_width = 7U;     /* Default 7-bit addressing */
     adap->in_use = 0U;
     
-    /* Check DMA support */
-    if ((algo->functionality & I2C_FUNC_DMA_SUPPORT) != 0U) {
-        adap->dma_supported = 1U;
-    } else {
-        adap->dma_supported = 0U;
-    }
-    adap->dma_enabled = adap->dma_supported;
-    
     /* Add to list */
     list_add_tail(&adap->node, &i2c_adapter_list);
     
@@ -323,16 +223,6 @@ int i2c_del_adapter(struct i2c_adapter *adap)
     if (adap == NULL) {
         return -EINVAL;
     }
-    
-    /* Check if adapter is in use */
-    i2c_adapter_lock(adap);
-    
-    if (adap->in_use != 0U) {
-        i2c_adapter_unlock(adap);
-        return -EBUSY;
-    }
-    
-    i2c_adapter_unlock(adap);
     
     /* Remove from list */
     list_del(&adap->node);
@@ -402,12 +292,8 @@ struct i2c_client *i2c_new_client(const char *name,
         return NULL;
     }
     
-    /* Check if adapter supports required addressing mode */
-    if ((flags & I2C_M_TEN) != 0U) {
-        if ((adap->algo->functionality & I2C_FUNC_10BIT_ADDR) == 0U) {
-            return NULL;
-        }
-    }
+    /* Note: Address mode validation should be done at transfer time */
+    /* The algorithm structure no longer includes functionality flags */
     
     /* Allocate client */
     client = i2c_alloc_client();
@@ -445,49 +331,31 @@ int i2c_del_client(struct i2c_client *client)
 
 /**
  * @brief Synchronous I2C message transfer
- * @param client Client pointer
+ * @param adap Adapter pointer
  * @param msgs Array of messages to transfer
  * @param num Number of messages
  * @return Number of messages transferred on success, error code on failure
  */
-int i2c_transfer(struct i2c_client *client, 
-                 struct i2c_msg *msgs, 
-                 int num)
+int i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, uint32_t num)
 {
-    struct i2c_adapter *adap = NULL;
     int ret = 0;
-    int retry = 0;
-    int i = 0;
+    uint32_t retry = 0;
     
     /* Parameter validation */
-    if ((client == NULL) || (msgs == NULL) || (num <= 0)) {
+    if ((adap == NULL) || (msgs == NULL) || (num == 0U)) {
         return -EINVAL;
     }
     
-    adap = client->adapter;
-    if (adap == NULL) {
-        return -ENODEV;
-    }
-    
-    /* Set client address and flags in all messages */
-    for (i = 0; i < num; i++) {
-        msgs[i].addr = client->addr;
-        msgs[i].flags |= client->flags;
-    }
-    
     /* Retry on failure */
-    retry = 0;
     do {
-        ret = i2c_transfer_internal(adap, client, msgs, num);
-        
+        ret = i2c_transfer_internal(adap, msgs, num);
         if (ret >= 0) {
             break;
         }
-        
         /* Check if we should retry */
         if ((ret == -EIO) || (ret == -ETIMEOUT)) {
             retry++;
-            if (retry < (int)I2C_MAX_RETRIES) {
+            if (retry < adap->retries) {
                 /* Small delay before retry */
                 /* Note: In real implementation, this should use a delay function */
                 continue;
@@ -496,7 +364,7 @@ int i2c_transfer(struct i2c_client *client,
         
         /* Don't retry on other errors */
         break;
-    } while (retry < (int)I2C_MAX_RETRIES);
+    } while (retry < adap->retries);
     
     return ret;
 }
