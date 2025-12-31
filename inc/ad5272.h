@@ -31,8 +31,10 @@
  * @brief AD5272设备结构体
  */
 typedef struct {
-    struct i2c_client *client;  /**< I2C客户端指针 */
-    uint16_t max_position;       /**< 最大位置值（1023） */
+    struct i2c_adapter *adapter;  /**< I2C适配器指针 */
+    uint8_t  addr;                /**< I2C设备地址（7位地址） */
+    uint16_t flags;               /**< I2C设备标志 */
+    uint16_t max_position;        /**< 最大位置值（1023） */
 } ad5272_dev_t;
 
 /* Exported constants --------------------------------------------------------*/

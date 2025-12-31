@@ -66,12 +66,16 @@ int ad5272_init(ad5272_dev_t *dev, uint8_t i2c_addr, const char *adapter_name)
         LOG_W("adapter_name is NULL, use default: %s", adapter_name);
     }
     
-    /* 创建I2C客户端 */
-    dev->client = i2c_new_client("ad5272", adapter_name, (uint16_t)i2c_addr, 0U);
-    if (dev->client == NULL) {
-        LOG_E("Failed to create I2C client for AD5272");
+    /* 查找I2C适配器 */
+    dev->adapter = i2c_find_adapter(adapter_name);
+    if (dev->adapter == NULL) {
+        LOG_E("Failed to find I2C adapter: %s", adapter_name);
         return -ENODEV;
     }
+    
+    /* 设置设备地址和标志 */
+    dev->addr = i2c_addr;
+    dev->flags = 0U;
     
     /* 初始化设备结构体 */
     dev->max_position = AD5272_MAX_POSITION;
@@ -103,16 +107,13 @@ int ad5272_deinit(ad5272_dev_t *dev)
         return -EINVAL;
     }
     
-    /* 删除I2C客户端 */
-    if (dev->client != NULL) {
+    /* 清理I2C适配器引用 */
+    if (dev->adapter != NULL) {
         LOG_D("Deinitializing AD5272");
-        ret = i2c_del_client(dev->client);
-        dev->client = NULL;
-        if (ret == 0) {
-            LOG_I("AD5272 deinitialized successfully");
-        } else {
-            LOG_W("AD5272 deinit returned error: %d", ret);
-        }
+        dev->adapter = NULL;
+        dev->addr = 0U;
+        dev->flags = 0U;
+        LOG_I("AD5272 deinitialized successfully");
     }
     
     return ret;
@@ -250,7 +251,7 @@ static int ad5272_write_cmd(ad5272_dev_t *dev, uint8_t cmd, uint16_t data)
     buffer[1] = (uint8_t)(packet & 0xFF);
     
     /* 发送数据 */
-    ret = i2c_master_send(dev->client->adapter, dev->client->addr, dev->client->flags,
+    ret = i2c_master_send(dev->adapter, dev->addr, dev->flags,
                          buffer, 2U);
     if (ret < 0) {
         LOG_E("I2C write failed: %d", ret);
@@ -272,7 +273,7 @@ static int ad5272_read_reg(ad5272_dev_t *dev, uint8_t cmd, uint16_t param, uint1
         return ret;
     
     // 读取返回的 2 字节数据
-    ret = i2c_master_recv(dev->client->adapter, dev->client->addr, dev->client->flags,
+    ret = i2c_master_recv(dev->adapter, dev->addr, dev->flags,
                          buffer, 2U);
     if (ret != 2)
         return -EIO;

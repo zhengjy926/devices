@@ -28,17 +28,11 @@
 static LIST_HEAD(i2c_adapter_list);  /* Adapter list head */
 
 /* Private define ------------------------------------------------------------*/
-#define I2C_MAX_CLIENTS              (16U)    /**< Maximum number of I2C clients */
 #define I2C_DMA_THRESHOLD            (16U)    /**< Minimum length to use DMA */
 
 /* Private macro -------------------------------------------------------------*/
 
 /* Private variables ---------------------------------------------------------*/
-/**
- * @brief Static client pool (no dynamic memory allocation)
- */
-static struct i2c_client i2c_client_pool[I2C_MAX_CLIENTS];
-static uint8_t i2c_client_used[I2C_MAX_CLIENTS];
 
 /* Exported variables -------------------------------------------------------*/
 
@@ -47,8 +41,6 @@ static int i2c_validate_addr(uint16_t addr, uint16_t flags);
 static int i2c_transfer_internal(struct i2c_adapter *adap,
                                  struct i2c_msg *msgs,
                                  uint32_t num);
-static struct i2c_client *i2c_alloc_client(void);
-static void i2c_free_client(struct i2c_client *client);
 
 /* Exported functions --------------------------------------------------------*/
 
@@ -73,45 +65,6 @@ static int i2c_validate_addr(uint16_t addr, uint16_t flags)
     }
     
     return 0;
-}
-
-/**
- * @brief Allocate client from static pool
- * @return Client pointer on success, NULL on failure
- */
-static struct i2c_client *i2c_alloc_client(void)
-{
-    uint8_t i = 0U;
-    
-    for (i = 0U; i < I2C_MAX_CLIENTS; i++) {
-        if (i2c_client_used[i] == 0U) {
-            i2c_client_used[i] = 1U;
-            (void)memset(&i2c_client_pool[i], 0, sizeof(struct i2c_client));
-            return &i2c_client_pool[i];
-        }
-    }
-    
-    return NULL;
-}
-
-/**
- * @brief Free client to static pool
- * @param client Client pointer
- */
-static void i2c_free_client(struct i2c_client *client)
-{
-    uint8_t i = 0U;
-    
-    if (client == NULL) {
-        return;
-    }
-    
-    for (i = 0U; i < I2C_MAX_CLIENTS; i++) {
-        if (&i2c_client_pool[i] == client) {
-            i2c_client_used[i] = 0U;
-            break;
-        }
-    }
 }
 
 /**
@@ -256,77 +209,6 @@ struct i2c_adapter *i2c_find_adapter(const char *name)
     }
     
     return NULL;
-}
-
-/**
- * @brief Create new I2C client device
- * @param name Device name
- * @param adapter_name Adapter name to attach to
- * @param addr Device address
- * @param flags Device flags
- * @return Client pointer on success, NULL on failure
- */
-struct i2c_client *i2c_new_client(const char *name,
-                                  const char *adapter_name,
-                                  uint16_t addr,
-                                  uint16_t flags)
-{
-    struct i2c_adapter *adap;
-    struct i2c_client *client;
-    int ret;
-    
-    /* Parameter validation */
-    if ((name == NULL) || (adapter_name == NULL)) {
-        return NULL;
-    }
-    
-    /* Validate address */
-    ret = i2c_validate_addr(addr, flags);
-    if (ret != 0) {
-        return NULL;
-    }
-    
-    /* Find adapter */
-    adap = i2c_find_adapter(adapter_name);
-    if (adap == NULL) {
-        return NULL;
-    }
-    
-    /* Note: Address mode validation should be done at transfer time */
-    /* The algorithm structure no longer includes functionality flags */
-    
-    /* Allocate client */
-    client = i2c_alloc_client();
-    if (client == NULL) {
-        return NULL;
-    }
-    
-    /* Initialize client */
-    client->name = name;
-    client->adapter = adap;
-    client->addr = addr;
-    client->flags = flags;
-    client->timeout_ms = adap->timeout_ms;
-    client->driver_data = NULL;
-    
-    return client;
-}
-
-/**
- * @brief Delete I2C client device
- * @param client Client pointer
- * @return 0 on success, error code on failure
- */
-int i2c_del_client(struct i2c_client *client)
-{
-    if (client == NULL) {
-        return -EINVAL;
-    }
-    
-    /* Free client */
-    i2c_free_client(client);
-    
-    return 0;
 }
 
 /**

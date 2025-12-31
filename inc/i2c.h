@@ -36,7 +36,6 @@
 
 /* Forward declarations */
 struct i2c_msg;
-struct i2c_client;
 struct i2c_adapter;
 struct i2c_algorithm;
 struct i2c_bus_recovery_info;
@@ -71,19 +70,6 @@ struct i2c_msg {
     uint16_t flags; /**< Message flags (I2C_M_RD, I2C_M_TEN, etc.) */
     uint16_t len;   /**< Message length in bytes */
     uint8_t *buf;   /**< Pointer to message data buffer */
-};
-
-/**
- * @brief I2C Client Structure
- * @details Represents an I2C device connected to an adapter
- */
-struct i2c_client {
-    const char *name;                   /**< Device name */
-    struct i2c_adapter *adapter;        /**< Parent adapter */
-    uint16_t addr;                      /**< Device address */
-    uint16_t flags;                     /**< Device flags */
-    uint32_t timeout_ms;                /**< Timeout in milliseconds */
-    void *driver_data;                  /**< Driver private data */
 };
 
 /**
@@ -171,13 +157,6 @@ int i2c_del_adapter(struct i2c_adapter *adap);
 
 struct i2c_adapter *i2c_find_adapter(const char *name);
 
-struct i2c_client *i2c_new_client(const char *name,
-                                  const char *adapter_name,
-                                  uint16_t addr,
-                                  uint16_t flags);
-
-int i2c_del_client(struct i2c_client *client);
- 
 int i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, uint32_t num);
 
 /**
@@ -286,7 +265,11 @@ i2c_write_then_read(struct i2c_adapter *adap, uint16_t addr, uint16_t flags,
     
     ret = i2c_transfer(adap, msgs, 2);
     
-    return ret;
+    if (ret < 0) {
+        return ret;
+    }
+    
+    return 0;
 }
 
 /**
