@@ -28,7 +28,7 @@
 #include <string.h>
 
 /**
- * @defgroup SPI_Mode_Definitions SPI Mode Definitions
+ * @defgroup SPI Mode Definitions
  * @{
  */
 #define SPI_CPHA            (1U<<0)                  /**< Clock Phase (CPHA) bit definition */
@@ -57,6 +57,19 @@ struct spi_controller;
 struct spi_controller_ops;
 
 /**
+ * struct spi_delay - SPI delay information
+ * @value: Value for the delay
+ * @unit: Unit for the delay
+ */
+struct spi_delay {
+#define SPI_DELAY_UNIT_USECS	0
+#define SPI_DELAY_UNIT_NSECS	1
+#define SPI_DELAY_UNIT_SCK	    2
+	uint16_t	value;
+	uint8_t	unit;
+};
+
+/**
  * @brief SPI Transfer Structure
  * @details Single transfer descriptor, can be linked into a message
  */
@@ -74,7 +87,7 @@ struct spi_transfer {
  */
 struct spi_message {
     struct list_node transfers;        /**< Transfer list head */
-    struct spi_device *spi;           /**< Associated SPI device */
+    struct spi_device *spi;            /**< Associated SPI device */
     int status;                        /**< Transfer status: 0=success, <0=error */
     void *context;                     /**< Context pointer (optional) */
 };
@@ -110,7 +123,6 @@ struct spi_controller_ops {
      * @param ctrl Controller pointer
      * @param dev Device pointer
      * @return 0 on success, error code on failure
-     * @note This function may be called from interrupt context, must be reentrant
      */
     int (*setup)(struct spi_controller *ctrl, struct spi_device *dev);
     
@@ -119,7 +131,6 @@ struct spi_controller_ops {
      * @param ctrl Controller pointer
      * @param dev Device pointer
      * @param enable 1=activate (pull low), 0=release (pull high)
-     * @note This function may be called from interrupt context, must be reentrant
      */
     void (*set_cs)(struct spi_controller *ctrl, struct spi_device *dev, uint8_t enable);
     
@@ -129,7 +140,6 @@ struct spi_controller_ops {
      * @param dev Device pointer
      * @param transfer Transfer descriptor pointer
      * @return Number of bytes transferred on success, error code on failure
-     * @note This function may be called from interrupt context, must be reentrant
      */
     ssize_t (*transfer_one)(struct spi_controller *ctrl, 
                            struct spi_device *dev,
@@ -143,24 +153,13 @@ struct spi_controller_ops {
 struct spi_controller {
     struct list_node node;                      /**< List node */
     char name[SPI_NAME_MAX];                    /**< Controller name */
-    const struct spi_controller_ops *ops;      /**< Operation functions */
+    const struct spi_controller_ops *ops;       /**< Operation functions */
     void *priv;                                 /**< Private data (points to BSP implementation) */
-    
-    /* Configuration cache (avoid repeated configuration) - protected by volatile */
-    volatile uint8_t mode;                      /**< Current mode */
-    volatile uint8_t bits_per_word;              /**< Current bits per word */
-    volatile uint32_t max_speed_hz;             /**< Maximum speed */
-    volatile uint32_t actual_speed_hz;          /**< Actual configured speed */
+    uint8_t mode;                               /**< Current mode */
+    uint8_t bits_per_word;                      /**< Current bits per word */
+    uint32_t max_speed_hz;                      /**< Maximum speed */
+    uint32_t actual_speed_hz;                   /**< Actual configured speed */
     struct spi_device *current_device;          /**< Currently configured device */
-    
-    /* Thread safety support (optional) */
-    void (*lock)(void *lock_data);              /**< Lock function (RTOS environment) */
-    void (*unlock)(void *lock_data);            /**< Unlock function (RTOS environment) */
-    void *lock_data;                            /**< Lock data (e.g., mutex handle) */
-    
-    /* Interrupt control support (optional) */
-    void (*irq_disable)(void);                  /**< Disable interrupts (bare-metal environment) */
-    void (*irq_enable)(void);                   /**< Enable interrupts (bare-metal environment) */
 };
 
 /* Exported types ------------------------------------------------------------*/
@@ -173,51 +172,13 @@ struct spi_controller {
 
 /* Exported functions --------------------------------------------------------*/
 
-/**
- * @brief Register SPI controller
- * @param ctrl Controller structure pointer
- * @param name Controller name
- * @param ops Operation functions pointer
- * @return 0 on success, error code on failure
- */
 int spi_controller_register(struct spi_controller *ctrl, 
                             const char *name, 
                             const struct spi_controller_ops *ops);
-
-/**
- * @brief Find SPI controller by name
- * @param name Controller name
- * @return Controller pointer on success, NULL on failure
- */
 struct spi_controller *spi_controller_find(const char *name);
-
-/**
- * @brief Attach SPI device to controller
- * @param dev Device pointer
- * @param controller_name Controller name
- * @return 0 on success, error code on failure
- */
 int spi_device_attach(struct spi_device *dev, const char *controller_name);
-
-/**
- * @brief Initialize SPI message
- * @param m Message pointer
- */
 void spi_message_init(struct spi_message *m);
-
-/**
- * @brief Add transfer to message tail
- * @param t Transfer pointer
- * @param m Message pointer
- */
 void spi_message_add_tail(struct spi_transfer *t, struct spi_message *m);
-
-/**
- * @brief Synchronous SPI message transfer
- * @param dev Device pointer
- * @param message Message pointer
- * @return 0 on success, error code on failure
- */
 int spi_sync(struct spi_device *dev, struct spi_message *message);
 
 /**

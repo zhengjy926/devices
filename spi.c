@@ -37,50 +37,10 @@ static LIST_HEAD(spi_controller_list);  /* Controller list head */
 /* Exported variables -------------------------------------------------------*/
 
 /* Private function prototypes -----------------------------------------------*/
-static inline void spi_controller_lock(struct spi_controller *ctrl);
-static inline void spi_controller_unlock(struct spi_controller *ctrl);
 static int spi_controller_setup_internal(struct spi_controller *ctrl, 
                                          struct spi_device *dev);
 
 /* Exported functions --------------------------------------------------------*/
-
-/**
- * @brief Lock controller (thread safety)
- * @param ctrl Controller pointer
- */
-static inline void spi_controller_lock(struct spi_controller *ctrl)
-{
-    if (ctrl == NULL) {
-        return;
-    }
-    
-    if (ctrl->lock != NULL) {
-        /* RTOS environment: use mutex */
-        ctrl->lock(ctrl->lock_data);
-    } else if (ctrl->irq_disable != NULL) {
-        /* Bare-metal environment: disable interrupts */
-        ctrl->irq_disable();
-    }
-}
-
-/**
- * @brief Unlock controller (thread safety)
- * @param ctrl Controller pointer
- */
-static inline void spi_controller_unlock(struct spi_controller *ctrl)
-{
-    if (ctrl == NULL) {
-        return;
-    }
-    
-    if (ctrl->unlock != NULL) {
-        /* RTOS environment: release mutex */
-        ctrl->unlock(ctrl->lock_data);
-    } else if (ctrl->irq_enable != NULL) {
-        /* Bare-metal environment: enable interrupts */
-        ctrl->irq_enable();
-    }
-}
 
 /**
  * @brief Internal setup function (noinline to prevent optimization issues)
@@ -100,13 +60,9 @@ spi_controller_setup_internal(struct spi_controller *ctrl,
         return -EINVAL;
     }
     
-    /* Update configuration cache in critical section */
-    spi_controller_lock(ctrl);
-    
     /* Call hardware setup */
     ret = ctrl->ops->setup(ctrl, dev);
     if (ret != 0) {
-        spi_controller_unlock(ctrl);
         return ret;
     }
     
@@ -119,11 +75,6 @@ spi_controller_setup_internal(struct spi_controller *ctrl,
     ctrl->max_speed_hz = dev->max_speed_hz;
     ctrl->actual_speed_hz = actual_speed;
     ctrl->current_device = dev;
-    
-    /* Memory barrier to ensure writes complete */
-    __DSB();
-    
-    spi_controller_unlock(ctrl);
     
     return 0;
 }
@@ -322,9 +273,6 @@ int spi_sync(struct spi_device *dev, struct spi_message *message)
     message->spi = dev;
     message->status = 0;
     
-    /* Check if setup is needed */
-    spi_controller_lock(ctrl);
-    
     need_setup = 0U;
     if ((ctrl->current_device != dev) ||
         (ctrl->mode != dev->mode) ||
@@ -332,11 +280,6 @@ int spi_sync(struct spi_device *dev, struct spi_message *message)
         (ctrl->max_speed_hz != dev->max_speed_hz)) {
         need_setup = 1U;
     }
-    
-    /* Compiler barrier to prevent reordering */
-    asm volatile("" ::: "memory");
-    
-    spi_controller_unlock(ctrl);
     
     /* Setup controller if needed */
     if (need_setup != 0U) {
@@ -369,8 +312,6 @@ int spi_sync(struct spi_device *dev, struct spi_message *message)
             if (cs_active == 0U) {
                 ctrl->ops->set_cs(ctrl, dev, 1U);
                 cs_active = 1U;
-                /* Memory barrier after CS activation */
-                __DMB();
             }
             
             /* Execute transfer */
@@ -385,14 +326,11 @@ int spi_sync(struct spi_device *dev, struct spi_message *message)
                 /* Deactivate CS */
                 ctrl->ops->set_cs(ctrl, dev, 0U);
                 cs_active = 0U;
-                /* Memory barrier after CS deactivation */
-                __DMB();
                 
                 /* Reactivate CS for next transfer if exists */
                 if (has_next != 0U) {
                     ctrl->ops->set_cs(ctrl, dev, 1U);
                     cs_active = 1U;
-                    __DMB();
                 }
             }
         }
@@ -401,7 +339,6 @@ int spi_sync(struct spi_device *dev, struct spi_message *message)
     /* Ensure CS is deactivated */
     if (cs_active != 0U) {
         ctrl->ops->set_cs(ctrl, dev, 0U);
-        __DMB();
     }
     
     message->status = ret;
