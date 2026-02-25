@@ -13,6 +13,7 @@
  *                3. Compiler optimization compatible
  *                4. Support 7-bit and 10-bit addressing
  *                5. Support DMA transfer
+ *                6. Bus recovery info (set_scl/get_scl/set_sda/get_sda, recovery_delay_us)
  *
  ******************************************************************************
  */
@@ -81,11 +82,17 @@ struct i2c_algorithm {
     int (*xfer)(struct i2c_adapter *adap, struct i2c_msg *msgs, uint32_t num);
 };
 
+/**
+ * @brief I2C bus recovery info (SCL/SDA via GPIO pin_id, use gpio_read/gpio_write)
+ * @details BSP fills scl_pin_id/sda_pin_id and recovery_delay_us; framework uses
+ *          gpio_read/gpio_write for level operations. prepare/unprepare switch pin mode.
+ */
 struct i2c_bus_recovery_info {
-    uint32_t scl_pin_id;
-    uint32_t sda_pin_id;
-    void (*prepare_recovery)(struct i2c_adapter *adap);
-    void (*unprepare_recovery)(struct i2c_adapter *adap);
+    uint32_t scl_pin_id;                                      /**< SCL GPIO pin id (gpio_write/gpio_read) */
+    uint32_t sda_pin_id;                                      /**< SDA GPIO pin id (gpio_write/gpio_read) */
+    void (*prepare_recovery)(struct i2c_adapter *adap);        /**< Switch to GPIO mode before recovery */
+    void (*unprepare_recovery)(struct i2c_adapter *adap);      /**< Restore I2C mode after recovery */
+    void (*recovery_delay_us)(struct i2c_adapter *adap, uint32_t us);  /**< Delay in us (e.g. 5us for 100kHz half-cycle) */
 };
 
 /* Exported constants --------------------------------------------------------*/
@@ -111,10 +118,6 @@ struct i2c_bus_recovery_info {
                                       *  as write.
                                       */
 #define I2C_M_TEN           (1U<<1)     /**< Ten bit of slave chip address */
-#define I2C_M_NO_RD_ACK     (1U<<2)          /**< In a read message, master ACK/NACK bit is skipped */
-#define I2C_M_IGNORE_NAK    (1U<<3)          /**< Treat NACK from client as ACK */
-#define I2C_M_NOSTART       (1U<<4)     /**< Skip repeated start sequence */
-#define I2C_M_STOP          (1U<<5)     /**< Force a STOP condition after the message */
 /** @} */
 
 /**
@@ -123,23 +126,7 @@ struct i2c_bus_recovery_info {
  */
 #define I2C_FUNC_I2C                    (1U<<0)  /**< Plain I2C */
 #define I2C_FUNC_10BIT_ADDR             (1U<<1)  /**< 10-bit addresses */
-#define I2C_FUNC_PROTOCOL_MANGLING      (1U<<4)  /**< I2C_M_IGNORE_NAK etc. */
-#define I2C_FUNC_SMBUS_PEC              (1U<<8)  /**< SMBus PEC */
-#define I2C_FUNC_NOSTART                (1U<<9)  /**< I2C_M_NOSTART */
 #define I2C_FUNC_SLAVE                  (1U<<10) /**< I2C slave mode */
-#define I2C_FUNC_SMBUS_BLOCK_PROC_CALL  (1U<<11) /**< SMBus block process call */
-#define I2C_FUNC_SMBUS_QUICK            (1U<<12) /**< SMBus quick command */
-#define I2C_FUNC_SMBUS_READ_BYTE        (1U<<13) /**< SMBus read byte */
-#define I2C_FUNC_SMBUS_WRITE_BYTE       (1U<<14) /**< SMBus write byte */
-#define I2C_FUNC_SMBUS_READ_BYTE_DATA   (1U<<15) /**< SMBus read byte data */
-#define I2C_FUNC_SMBUS_WRITE_BYTE_DATA  (1U<<16) /**< SMBus write byte data */
-#define I2C_FUNC_SMBUS_READ_WORD_DATA   (1U<<17) /**< SMBus read word data */
-#define I2C_FUNC_SMBUS_WRITE_WORD_DATA  (1U<<18) /**< SMBus write word data */
-#define I2C_FUNC_SMBUS_PROC_CALL        (1U<<19) /**< SMBus process call */
-#define I2C_FUNC_SMBUS_READ_BLOCK_DATA  (1U<<20) /**< SMBus read block data */
-#define I2C_FUNC_SMBUS_WRITE_BLOCK_DATA (1U<<21) /**< SMBus write block data */
-#define I2C_FUNC_SMBUS_READ_I2C_BLOCK   (1U<<22) /**< SMBus read I2C block */
-#define I2C_FUNC_SMBUS_WRITE_I2C_BLOCK  (1U<<23) /**< SMBus write I2C block */
 #define I2C_FUNC_DMA_SUPPORT            (1U<<24) /**< DMA transfer support */
 /** @} */
 
@@ -158,6 +145,20 @@ int i2c_del_adapter(struct i2c_adapter *adap);
 struct i2c_adapter *i2c_find_adapter(const char *name);
 
 int i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, uint32_t num);
+
+/**
+ * @brief Check if I2C bus is free (SCL and SDA high)
+ * @param adap Adapter pointer
+ * @return 0 if bus free, -EBUSY if not
+ */
+int i2c_generic_bus_free(struct i2c_adapter *adap);
+
+/**
+ * @brief Generic SCL clock stretching recovery (bus hang recovery)
+ * @param adap Adapter pointer (must have bus_recovery_info configured)
+ * @return 0 on success, -EBUSY if SCL stuck low
+ */
+int i2c_generic_scl_recovery(struct i2c_adapter *adap);
 
 /**
  * @brief Send data to I2C device (simplified interface)

@@ -19,6 +19,9 @@
 /* Includes ------------------------------------------------------------------*/
 
 #include "tca6424.h"
+#include "bsp_conf.h"
+#include "bsp_dwt.h"
+#include "gpio.h"
 #include <string.h>
 #include <errno-base.h>
 
@@ -108,6 +111,25 @@ int tca6424_init(tca6424_t *dev, uint8_t addr7, const char *adapter_name)
     (void)memset(dev->pol, 0x00u, sizeof(dev->pol));  /* 默认极性正常 */
     
     return 0;
+}
+
+
+/**
+ * @brief 通过硬件RESET引脚复位TCA6424
+ * @note 拉低RESET至少满足芯片t_W要求后释放，复位后芯片恢复默认状态（全输入）。
+ *       调用方需在复位后重新执行输出与配置写入以进入已知安全状态。
+ */
+void tca6424_reset(void)
+{
+    /* 配置RESET引脚为推挽输出（若尚未配置） */
+    gpio_set_mode(TCA6424_RST_PIN_ID, PIN_OUTPUT_PP, PIN_PULL_UP);
+    /* 拉低RESET，触发复位（满足t_W最小脉宽，取10us） */
+    gpio_write(TCA6424_RST_PIN_ID, 0U);
+    bsp_dwt_delay_us(10U);
+    /* 释放RESET */
+    gpio_write(TCA6424_RST_PIN_ID, 1U);
+    /* 复位恢复时间后再访问I2C（t_RESET约600ns，取100us余量） */
+    bsp_dwt_delay_us(10U);
 }
 
 

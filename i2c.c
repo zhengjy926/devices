@@ -13,11 +13,13 @@
  *                3. Compiler optimization compatible
  *                4. Support 7-bit and 10-bit addressing
  *                5. Support DMA transfer
+ *                6. Bus hang recovery (i2c_generic_scl_recovery) on -EIO/-ETIMEOUT
  *
  ******************************************************************************
  */
 /* Includes ------------------------------------------------------------------*/
 #include "i2c.h"
+#include "gpio.h"
 
 /* Debug support - optional */
 #define  LOG_TAG             "i2c"
@@ -29,6 +31,9 @@ static LIST_HEAD(i2c_adapter_list);  /* Adapter list head */
 
 /* Private define ------------------------------------------------------------*/
 #define I2C_DMA_THRESHOLD            (16U)    /**< Minimum length to use DMA */
+/* Bus recovery: 100kHz half-period = 5us (10^6/100/2 ns -> 5000 ns) */
+#define I2C_RECOVERY_DELAY_US        (5U)     /**< Recovery clock half-cycle in us */
+#define I2C_RECOVERY_CLK_CNT         (9U)     /**< Number of SCL clock pulses for recovery */
 
 /* Private macro -------------------------------------------------------------*/
 
@@ -212,6 +217,100 @@ struct i2c_adapter *i2c_find_adapter(const char *name)
 }
 
 /**
+ * @brief Check if I2C bus is free (SCL and SDA high)
+ * @param adap Adapter pointer
+ * @return 0 if bus free, -EBUSY if not
+ */
+int i2c_generic_bus_free(struct i2c_adapter *adap)
+{
+    struct i2c_bus_recovery_info *bri;
+    uint8_t scl_val;
+    uint8_t sda_val;
+
+    if (adap == NULL) {
+        return -EINVAL;
+    }
+    bri = adap->bus_recovery_info;
+    if (bri == NULL) {
+        return -EINVAL;
+    }
+    scl_val = gpio_read(bri->scl_pin_id);
+    sda_val = gpio_read(bri->sda_pin_id);
+    if ((scl_val != 0U) && (sda_val != 0U)) {
+        return 0;
+    }
+    return -EBUSY;
+}
+
+/**
+ * @brief Generic SCL clock stretching recovery (bus hang recovery)
+ * @param adap Adapter pointer (must have bus_recovery_info configured)
+ * @return 0 on success, -EBUSY if SCL stuck low
+ */
+int i2c_generic_scl_recovery(struct i2c_adapter *adap)
+{
+    struct i2c_bus_recovery_info *bri;
+    uint8_t scl;
+    int ret;
+    uint32_t i;
+
+    if (adap == NULL) {
+        return -EINVAL;
+    }
+    bri = adap->bus_recovery_info;
+    if (bri == NULL) {
+        return -EINVAL;
+    }
+    if (bri->recovery_delay_us == NULL) {
+        return -EINVAL;
+    }
+
+    if (bri->prepare_recovery != NULL) {
+        bri->prepare_recovery(adap);
+    }
+
+    /* Generate STOP: SCL high then SDA high (SDA follows SCL half-cycle later) */
+    scl = 1U;
+    gpio_write(bri->scl_pin_id, scl);
+    bri->recovery_delay_us(adap, I2C_RECOVERY_DELAY_US);
+    gpio_write(bri->sda_pin_id, scl);
+    bri->recovery_delay_us(adap, I2C_RECOVERY_DELAY_US / 2U);
+
+    ret = 0;
+    for (i = 0U; i < (I2C_RECOVERY_CLK_CNT * 2U); i++) {
+        if (scl != 0U) {
+            if (gpio_read(bri->scl_pin_id) == 0U) {
+                LOG_E("I2C SCL stuck low, exit recovery");
+                ret = -EBUSY;
+                break;
+            }
+        }
+        scl = (scl == 0U) ? 1U : 0U;
+        gpio_write(bri->scl_pin_id, scl);
+        if (scl != 0U) {
+            bri->recovery_delay_us(adap, I2C_RECOVERY_DELAY_US);
+        } else {
+            bri->recovery_delay_us(adap, I2C_RECOVERY_DELAY_US / 2U);
+        }
+        gpio_write(bri->sda_pin_id, scl);
+        bri->recovery_delay_us(adap, I2C_RECOVERY_DELAY_US / 2U);
+
+        if (scl != 0U) {
+            ret = i2c_generic_bus_free(adap);
+            if (ret == 0) {
+                break;
+            }
+        }
+    }
+
+    if (bri->unprepare_recovery != NULL) {
+        bri->unprepare_recovery(adap);
+    }
+
+    return ret;
+}
+
+/**
  * @brief Synchronous I2C message transfer
  * @param adap Adapter pointer
  * @param msgs Array of messages to transfer
@@ -234,17 +333,17 @@ int i2c_transfer(struct i2c_adapter *adap, struct i2c_msg *msgs, uint32_t num)
         if (ret >= 0) {
             break;
         }
-        /* Check if we should retry */
+        /* On bus hang (-EIO/-ETIMEOUT), try bus recovery then retry */
         if ((ret == -EIO) || (ret == -ETIMEOUT)) {
+            LOG_W("i2c_transfer: try bus recovery");
             retry++;
             if (retry < adap->retries) {
-                /* Small delay before retry */
-                /* Note: In real implementation, this should use a delay function */
+                if (adap->bus_recovery_info != NULL) {
+                    (void)i2c_generic_scl_recovery(adap);
+                }
                 continue;
             }
         }
-        
-        /* Don't retry on other errors */
         break;
     } while (retry < adap->retries);
     

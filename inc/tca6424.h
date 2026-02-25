@@ -91,6 +91,7 @@ typedef struct {
 /* 初始化和缓存管理 */
 int tca6424_init(tca6424_t *dev, uint8_t addr7, const char *adapter_name);
 int tca6424_refresh_cache(tca6424_t *dev);
+void tca6424_reset(void);
 
 /* 原始寄存器访问 */
 int tca6424_read_reg(tca6424_t *dev, uint8_t reg, bool auto_inc, uint8_t *rx_buf, uint8_t len);
