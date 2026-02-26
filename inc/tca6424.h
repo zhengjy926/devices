@@ -1,19 +1,18 @@
 /**
-  ******************************************************************************
-  * @file        : tca6424.h
-  * @author      : ZJY
-  * @version     : V1.0
-  * @date        : 2025-01-XX
-  * @brief       : TCA6424 24位I²C I/O扩展器驱动头文件
-  * @attention   : None
-  ******************************************************************************
-  * @history     :
-  *         V1.0 : 1. 初始版本，实现TCA6424基本功能
-  *                2. 支持24位I/O端口读写
-  *                3. 支持单引脚操作
-  *                4. 支持配置、输出、极性反转寄存器操作
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file        : tca6424.h
+ * @author      : ZJY
+ * @version     : V1.0
+ * @date        : 2025-02-25
+ * @brief       : TCA6424 24-bit I²C I/O expander driver header file
+ * @attention   : None
+ ******************************************************************************
+ * @history     :
+ * V1.0 : 1. Initial version, implements basic TCA6424 functions
+ *        2. Supports 24-bit I/O port read/write and single-pin operations
+ *        3. Supports configuration, output, and polarity inversion registers
+ ******************************************************************************
+ */
 #ifndef __TCA6424_H__
 #define __TCA6424_H__
 
@@ -25,58 +24,101 @@
 
 #include "i2c.h"
 #include <stdbool.h>
+#include <stdint.h>
 
 /* Exported types ------------------------------------------------------------*/
-
-/**
- * @brief TCA6424设备结构体
- * @details 包含I2C适配器指针、设备地址、缓存状态和寄存器缓存
- */
-typedef struct {
-    struct i2c_adapter *adapter; /**< I2C适配器指针 */
-    uint8_t  addr;               /**< I2C设备地址（7位地址） */
-    uint16_t flags;              /**< I2C设备标志 */
-    bool     cache_valid;        /**< 缓存有效性标志 */
-    uint8_t  out[3];             /**< 输出寄存器缓存 [Port0, Port1, Port2] */
-    uint8_t  cfg[3];             /**< 配置寄存器缓存 [Port0, Port1, Port2] */
-    uint8_t  pol[3];             /**< 极性反转寄存器缓存 [Port0, Port1, Port2] */
+/** @brief TCA6424 device descriptor: I2C client, RST/INT pins, and input/output/polarity/config caches */
+typedef struct tca6424_device {
+    i2c_client_t client;         /**< I2C client (bus + address), must not be NULL */
+    uint32_t rst_pin;            /**< RESET# GPIO pin id (active low); use UINT32_MAX if not present */
+    uint32_t int_pin;            /**< Optional INT# GPIO pin id; use UINT32_MAX if not present */
+    uint8_t out_cache[3];        /**< Output cache for three ports */
+    uint8_t in_cache[3];         /**< Input cache for three ports */
+    uint8_t pol_cache[3];        /**< Polarity inversion cache */
+    uint8_t cfg_cache[3];        /**< Configuration cache */
 } tca6424_t;
 
 /* Exported constants --------------------------------------------------------*/
 
-/** @brief I2C地址定义（ADDR引脚接地时） */
-#define TCA6424_I2C_ADDR_L              (0x22U)
-/** @brief I2C地址定义（ADDR引脚接VCCP时） */
-#define TCA6424_I2C_ADDR_H              (0x23U)
-
-/** @brief 输入端口寄存器地址（只读） */
-#define TCA6424_REG_INPUT_PORT0         (0x00u)
-#define TCA6424_REG_INPUT_PORT1         (0x01u)
-#define TCA6424_REG_INPUT_PORT2         (0x02u)
-
-/** @brief 输出端口寄存器地址（读写） */
-#define TCA6424_REG_OUTPUT_PORT0        (0x04u)
-#define TCA6424_REG_OUTPUT_PORT1        (0x05u)
-#define TCA6424_REG_OUTPUT_PORT2        (0x06u)
-
-/** @brief 极性反转寄存器地址（读写） */
-#define TCA6424_REG_POL_PORT0           (0x08u)
-#define TCA6424_REG_POL_PORT1           (0x09u)
-#define TCA6424_REG_POL_PORT2           (0x0Au)
-
-/** @brief 配置寄存器地址（读写），1=输入，0=输出 */
-#define TCA6424_REG_CFG_PORT0           (0x0Cu)
-#define TCA6424_REG_CFG_PORT1           (0x0Du)
-#define TCA6424_REG_CFG_PORT2           (0x0Eu)
-
-/** @brief 自动递增位位置（命令字节bit7） */
-#define TCA6424_AUTO_INC_POS            (7)
-
-/* port: 0..2, bit: 0..7
- * 返回: 0..23
- * 映射: pin = port*8 + bit
+/**
+ * @defgroup TCA6424 I2C Address Definitions
+ * @{
  */
-#define TCA6424_PIN(port, bit)    ((uint8_t)((uint8_t)(port) * 8u + (uint8_t)(bit)))
+#define TCA6424_I2C_ADDR_L              (0x22U) /**< I2C address when ADDR pin is tied to GND */
+#define TCA6424_I2C_ADDR_H              (0x23U) /**< I2C address when ADDR pin is tied to VCCP */
+/**
+ * @}
+ */
+
+/**
+ * @defgroup TCA6424 Register Address Definitions
+ * @{
+ */
+
+/**
+ * @defgroup TCA6424 Input Port Register (read-only) Addresses
+ * @{
+ */
+#define TCA6424_REG_INPUT_PORT0         (0x00U)
+#define TCA6424_REG_INPUT_PORT1         (0x01U)
+#define TCA6424_REG_INPUT_PORT2         (0x02U)
+/**
+ * @}
+ */
+
+/**
+ * @defgroup TCA6424 Output Port Register (read/write) Addresses
+ * @{
+ */
+#define TCA6424_REG_OUTPUT_PORT0        (0x04U)
+#define TCA6424_REG_OUTPUT_PORT1        (0x05U)
+#define TCA6424_REG_OUTPUT_PORT2        (0x06U)
+/**
+ * @}
+ */
+
+/**
+ * @defgroup TCA6424 Polarity Inversion Register (read/write) Addresses
+ * @{
+ */
+#define TCA6424_REG_POL_PORT0           (0x08U)
+#define TCA6424_REG_POL_PORT1           (0x09U)
+#define TCA6424_REG_POL_PORT2           (0x0AU)
+/**
+ * @}
+ */
+
+/**
+ * @defgroup TCA6424 Configuration Register (read/write) Addresses
+ * @{
+ */
+#define TCA6424_REG_CFG_PORT0           (0x0CU)
+#define TCA6424_REG_CFG_PORT1           (0x0DU)
+#define TCA6424_REG_CFG_PORT2           (0x0EU)
+/**
+ * @}
+ */
+
+/**
+ * @}
+ */
+
+
+#define TCA6424_NUM_PORTS               (3U)
+#define TCA6424_PINS_PER_PORT           (8U)
+#define TCA6424_NUM_PINS                (24U)
+
+/** Command byte bit 7: auto-increment (after read/write, move to next port) */
+#define TCA6424_CMD_AI_BIT              (7U)
+#define TCA6424_CMD_AI_MASK             (0x80U)
+
+/* port: 0..2, bit: 0..7 → pin 0..23 */
+#define TCA6424_PIN(port, bit)          ((uint8_t)((uint8_t)(port) * 8u + (uint8_t)(bit)))
+#define TCA6424_PORT(pin)               ((uint8_t)((uint8_t)(pin) / 8u))
+#define TCA6424_BIT(pin)                ((uint8_t)((uint8_t)(pin) % 8u))
+
+#define TCA6424_RESET_PULSE_DURATION    (1U) /**< RESET# low pulse width in microseconds */
+#define TCA6424_TIME_TO_RESET           (1U) /**< Time to wait after releasing RESET#, in microseconds */
 
 /* Exported macros -----------------------------------------------------------*/
 
@@ -86,37 +128,35 @@ typedef struct {
 
 
 
+/** Pin direction in configuration register: 1=input, 0=output */
+typedef enum {
+    TCA6424_DIR_OUTPUT = 0,
+    TCA6424_DIR_INPUT  = 1
+} tca6424_dir_t;
+
 /* Exported functions --------------------------------------------------------*/
+int tca6424_init(tca6424_t *dev, uint8_t addr, const char *adapter_name,
+                 uint32_t rst_pin, uint32_t int_pin);
+void tca6424_reset(tca6424_t *dev);
+int tca6424_sync_cache(tca6424_t *dev);
 
-/* 初始化和缓存管理 */
-int tca6424_init(tca6424_t *dev, uint8_t addr7, const char *adapter_name);
-int tca6424_refresh_cache(tca6424_t *dev);
-void tca6424_reset(void);
+int tca6424_read_port(tca6424_t *dev, uint8_t port, uint8_t *val);
+int tca6424_write_port(tca6424_t *dev, uint8_t port, uint8_t val);
 
-/* 原始寄存器访问 */
-int tca6424_read_reg(tca6424_t *dev, uint8_t reg, bool auto_inc, uint8_t *rx_buf, uint8_t len);
-int tca6424_write_reg(tca6424_t *dev, uint8_t reg, bool auto_inc, uint8_t *tx_buf, uint8_t len);
+int tca6424_read_pin(tca6424_t *dev, uint8_t pin, uint8_t *level);
+int tca6424_write_pin(tca6424_t *dev, uint8_t pin, uint8_t level);
 
-/* 24位端口访问（bit0=P00 ... bit23=P27） */
-int tca6424_read_inputs24(tca6424_t *dev, uint32_t *in_bits);
-int tca6424_read_outputs24(tca6424_t *dev, uint32_t *out_latch_bits);
-int tca6424_write_outputs24(tca6424_t *dev, uint32_t out_latch_bits);
-int tca6424_read_polarity24(tca6424_t *dev, uint32_t *pol_bits);
-int tca6424_write_polarity24(tca6424_t *dev, uint32_t pol_bits);
-int tca6424_read_config24(tca6424_t *dev, uint32_t *cfg_bits);
-int tca6424_write_config24(tca6424_t *dev, uint32_t cfg_bits);
+int tca6424_read_inputs(tca6424_t *dev, uint32_t *val);
+int tca6424_write_outputs(tca6424_t *dev, uint32_t val);
 
-/* 掩码更新操作 */
-int tca6424_update_outputs24(tca6424_t *dev, uint32_t set_mask, uint32_t clr_mask);
-int tca6424_update_config24(tca6424_t *dev, uint32_t set_mask, uint32_t clr_mask);
-int tca6424_update_polarity24(tca6424_t *dev, uint32_t set_mask, uint32_t clr_mask);
+int tca6424_read_config(tca6424_t *dev, uint32_t *cfg);
+int tca6424_write_config(tca6424_t *dev, uint32_t cfg);
 
-/* 单引脚操作（pin: 0-23，对应P00-P27） */
-int tca6424_pin_mode(tca6424_t *dev, uint8_t pin, bool input);
-int tca6424_read_pin(tca6424_t *dev, uint8_t pin, bool *level);
-int tca6424_write_pin(tca6424_t *dev, uint8_t pin, bool level);
-int tca6424_toggle_pin(tca6424_t *dev, uint8_t pin);
-int tca6424_configure_output_pin(tca6424_t *dev, uint8_t pin, bool initial_level);
+int tca6424_read_polarity(tca6424_t *dev, uint32_t *pol);
+int tca6424_write_polarity(tca6424_t *dev, uint32_t pol);
+
+int tca6424_set_direction(tca6424_t *dev, uint8_t pin, tca6424_dir_t dir);
+int tca6424_set_polarity(tca6424_t *dev, uint8_t pin, bool invert);
 
 #ifdef __cplusplus
 }

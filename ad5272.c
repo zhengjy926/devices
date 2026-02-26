@@ -16,6 +16,8 @@
 /* Includes ------------------------------------------------------------------*/
 #include "ad5272.h"
 #include "board.h"
+#include "errno-base.h"
+#include "i2c.h"
 
 #define  LOG_TAG             "ad5272"
 #define  LOG_LVL             4
@@ -243,21 +245,25 @@ int ad5272_set_shutdown(ad5272_dev_t *dev, bool enable)
  */
 static int ad5272_write_cmd(ad5272_dev_t *dev, uint8_t cmd, uint16_t data)
 {
-    int ret = 0;
+    int ret;
     uint8_t buffer[2];
-    uint16_t packet = ((cmd & 0x0F) << 10) | (data & 0x3FF);
+    uint16_t packet = ((cmd & 0x0FU) << 10) | (data & 0x3FFU);
+    const struct i2c_client client = {
+        .adapter = dev->adapter,
+        .addr    = (uint16_t)dev->addr,
+        .flags   = dev->flags,
+        .name    = { 0 }
+    };
 
     buffer[0] = (uint8_t)(packet >> 8);
-    buffer[1] = (uint8_t)(packet & 0xFF);
-    
-    /* 发送数据 */
-    ret = i2c_master_send(dev->adapter, dev->addr, dev->flags,
-                         buffer, 2U);
+    buffer[1] = (uint8_t)(packet & 0xFFU);
+
+    ret = i2c_master_send(&client, buffer, 2U);
     if (ret < 0) {
         LOG_E("I2C write failed: %d", ret);
         return -EIO;
     }
-    
+
     return 0;
 }
 
@@ -266,19 +272,23 @@ static int ad5272_read_reg(ad5272_dev_t *dev, uint8_t cmd, uint16_t param, uint1
 {
     int ret;
     uint8_t buffer[2];
-    
-    // 发送读取请求命令
-    ret = ad5272_write_cmd(dev, cmd, param);
-    if (ret != 0)
-        return ret;
-    
-    // 读取返回的 2 字节数据
-    ret = i2c_master_recv(dev->adapter, dev->addr, dev->flags,
-                         buffer, 2U);
-    if (ret != 2)
-        return -EIO;
+    const struct i2c_client client = {
+        .adapter = dev->adapter,
+        .addr    = (uint16_t)dev->addr,
+        .flags   = dev->flags,
+        .name    = { 0 }
+    };
 
-    // 组装结果 (高位在前)
+    ret = ad5272_write_cmd(dev, cmd, param);
+    if (ret != 0) {
+        return ret;
+    }
+
+    ret = i2c_master_recv(&client, buffer, 2U);
+    if (ret != 2) {
+        return -EIO;
+    }
+
     *result = ((uint16_t)buffer[0] << 8) | buffer[1];
     return 0;
 }
