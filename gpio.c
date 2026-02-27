@@ -16,8 +16,11 @@
 /* Includes ------------------------------------------------------------------*/
 #include "gpio.h"
 #include "errno-base.h"
-#include <assert.h>
 #include <stddef.h>
+
+#define  LOG_TAG             "gpio"
+#define  LOG_LVL             3
+#include "log.h"
 
 /* Private typedef -----------------------------------------------------------*/
 
@@ -46,7 +49,7 @@ static const struct gpio_ops* _hw_pin;
  */
 void gpio_set_mode(uint32_t pin_id, pin_mode_t mode, pin_pull_t pull_resistor)
 {
-    assert(_hw_pin->set_mode != NULL);
+    LOG_ASSERT(_hw_pin->set_mode != NULL);
     
     _hw_pin->set_mode(pin_id, mode, pull_resistor);
 }
@@ -59,7 +62,7 @@ void gpio_set_mode(uint32_t pin_id, pin_mode_t mode, pin_pull_t pull_resistor)
  */
 void gpio_write(uint32_t pin_id, uint8_t value)
 {
-    assert(_hw_pin->write != NULL);
+    LOG_ASSERT(_hw_pin->write != NULL);
     
     _hw_pin->write(pin_id, value);
 }
@@ -71,7 +74,7 @@ void gpio_write(uint32_t pin_id, uint8_t value)
  */
 uint8_t gpio_read(size_t pin_id)
 {
-    assert(_hw_pin->read != NULL);
+    LOG_ASSERT(_hw_pin->read != NULL);
     
     return _hw_pin->read(pin_id);
 }
@@ -86,7 +89,7 @@ int gpio_get(const char *name)
     if (name == NULL)
         return -EINVAL;
     
-    assert(_hw_pin->get != NULL);
+    LOG_ASSERT(_hw_pin->get != NULL);
     
     return _hw_pin->get(name);
 }
@@ -101,7 +104,7 @@ int gpio_get(const char *name)
  */
 int gpio_attach_irq(uint32_t pin_id, pin_event_t event, void (*hdr)(void *args), void *args)
 {
-    assert(_hw_pin != NULL);
+    LOG_ASSERT(_hw_pin != NULL);
     
     if (_hw_pin->attach_irq)
     {
@@ -117,7 +120,7 @@ int gpio_attach_irq(uint32_t pin_id, pin_event_t event, void (*hdr)(void *args),
  */
 int gpio_detach_irq(uint32_t pin_id)
 {
-    assert(_hw_pin != NULL);
+    LOG_ASSERT(_hw_pin != NULL);
     
     if (_hw_pin->detach_irq)
     {
@@ -134,7 +137,7 @@ int gpio_detach_irq(uint32_t pin_id)
  */
 int gpio_irq_enable(uint32_t pin_id, uint32_t enabled)
 {
-    assert(_hw_pin != NULL);
+    LOG_ASSERT(_hw_pin != NULL);
     
     if (_hw_pin->irq_enable)
     {
