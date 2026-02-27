@@ -63,12 +63,6 @@
 #define PARITY_ODD                      1
 #define PARITY_EVEN                     2
 
-#define BIT_ORDER_LSB                   0
-#define BIT_ORDER_MSB                   1
-
-#define NRZ_NORMAL                      0
-#define NRZ_INVERTED                    1
-
 #define SERIAL_FLOWCONTROL_CTSRTS       1
 #define SERIAL_FLOWCONTROL_NONE         0
 
@@ -87,8 +81,6 @@
     .data_bits = DATA_BITS_8,                         \
     .stop_bits = STOP_BITS_1,                         \
     .parity = PARITY_NONE,                            \
-    .bit_order = BIT_ORDER_LSB,                       \
-    .invert = NRZ_NORMAL,                             \
     .flowcontrol = SERIAL_FLOWCONTROL_NONE,           \
     .reserved = 0                                     \
 }
@@ -107,10 +99,8 @@ struct serial_configure
     uint32_t data_bits      :4;         ///< Data bits
     uint32_t stop_bits      :2;         ///< Stop bits
     uint32_t parity         :2;         ///< Parity
-    uint32_t bit_order      :1;         ///< Bit order
-    uint32_t invert         :1;         ///< Invert signal
     uint32_t flowcontrol    :1;         ///< Flow control
-    uint32_t reserved       :5;         ///< Reserved
+    uint32_t reserved       :23;         ///< Reserved
 };
 
 /**

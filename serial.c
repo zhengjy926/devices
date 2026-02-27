@@ -243,11 +243,12 @@ ssize_t serial_write(serial_t *port, const void *buffer, size_t size)
 
     uint32_t primask = __get_PRIMASK();
     __disable_irq();
+    bool is_busy = port->ops->tx_is_busy(port);
+    __set_PRIMASK(primask);
     
-    if (port->ops->tx_is_busy(port) == false) {
+    if (is_busy == false) {
         start_transfer(port);
     }
-    __set_PRIMASK(primask);
     return ret;
 }
 
