@@ -18,8 +18,8 @@
 #include <string.h>
 
 #define  LOG_TAG             "dac"
-#define  LOG_LVL             4
-#include "log.h"
+#define  LOG_LVL             ELOG_LVL_DEBUG
+#include "elog.h"
 
 /* Private typedef -----------------------------------------------------------*/
 
@@ -57,7 +57,7 @@ dac_t* dac_find(const char *name)
     list_t *node = NULL;
 
     if (name == NULL) {
-        LOG_E("DAC name is NULL");
+        log_e("DAC name is NULL");
         return NULL;
     }
 
@@ -90,7 +90,7 @@ dac_t* dac_open(uint32_t number)
     } else if (number == 2U) {
         (void)strncpy(name, "dac3", DAC_NAME_MAX);
     } else {
-        LOG_E("Invalid DAC number: %lu", number);
+        log_e("Invalid DAC number: %lu", number);
         return NULL;
     }
 
@@ -99,7 +99,7 @@ dac_t* dac_open(uint32_t number)
     /* 查找设备 */
     dev = dac_find(name);
     if (dev == NULL) {
-        LOG_E("DAC device '%s' not found", name);
+        log_e("DAC device '%s' not found", name);
         return NULL;
     }
 
@@ -107,7 +107,7 @@ dac_t* dac_open(uint32_t number)
     if (dev->ops != NULL && dev->ops->init != NULL) {
         int32_t ret = dev->ops->init(dev);
         if (ret != 0) {
-            LOG_E("Failed to init DAC '%s', ret=%d", name, ret);
+            log_e("Failed to init DAC '%s', ret=%d", name, ret);
             return NULL;
         }
     }
@@ -153,21 +153,21 @@ int32_t dac_start(dac_t *dac, uint8_t channel)
 {
     if (dac == NULL)
     {
-        LOG_E("DAC device is NULL");
-        return -EINVAL;
+        log_e("DAC device is NULL");
+        return -ERR_INVAL;
     }
 
     if (channel >= dac->channel_count)
     {
-        LOG_E("Invalid channel: %u (max: %u)", channel, dac->channel_count);
-        return -EINVAL;
+        log_e("Invalid channel: %u (max: %u)", channel, dac->channel_count);
+        return -ERR_INVAL;
     }
 
     if (dac->ops == NULL || dac->ops->start == NULL)
     {
-        LOG_E("DAC '%s' not registered or missing start operation",
+        log_e("DAC '%s' not registered or missing start operation",
               dac->name != NULL ? dac->name : "unknown");
-        return -ENODEV;
+        return -ERR_NODEV;
     }
 
     return dac->ops->start(dac, channel);
@@ -183,21 +183,21 @@ int32_t dac_stop(dac_t *dac, uint8_t channel)
 {
     if (dac == NULL)
     {
-        LOG_E("DAC device is NULL");
-        return -EINVAL;
+        log_e("DAC device is NULL");
+        return -ERR_INVAL;
     }
 
     if (channel >= dac->channel_count)
     {
-        LOG_E("Invalid channel: %u (max: %u)", channel, dac->channel_count);
-        return -EINVAL;
+        log_e("Invalid channel: %u (max: %u)", channel, dac->channel_count);
+        return -ERR_INVAL;
     }
 
     if (dac->ops == NULL || dac->ops->stop == NULL)
     {
-        LOG_E("DAC '%s' not registered or missing stop operation",
+        log_e("DAC '%s' not registered or missing stop operation",
               dac->name != NULL ? dac->name : "unknown");
-        return -ENODEV;
+        return -ERR_NODEV;
     }
 
     return dac->ops->stop(dac, channel);
@@ -216,28 +216,28 @@ int32_t dac_set_value(dac_t *dac, uint8_t channel, uint32_t value)
 
     if (dac == NULL)
     {
-        LOG_E("DAC device is NULL");
-        return -EINVAL;
+        log_e("DAC device is NULL");
+        return -ERR_INVAL;
     }
 
     if (channel >= dac->channel_count)
     {
-        LOG_E("Invalid channel: %u (max: %u)", channel, dac->channel_count);
-        return -EINVAL;
+        log_e("Invalid channel: %u (max: %u)", channel, dac->channel_count);
+        return -ERR_INVAL;
     }
 
     if (dac->ops == NULL || dac->ops->set_value == NULL)
     {
-        LOG_E("DAC '%s' not registered or missing set_value operation",
+        log_e("DAC '%s' not registered or missing set_value operation",
               dac->name != NULL ? dac->name : "unknown");
-        return -ENODEV;
+        return -ERR_NODEV;
     }
 
     /* 检查值是否超出范围 */
     max_value = (1UL << dac->resolution_bits) - 1UL;
     if (value > max_value)
     {
-        LOG_W("DAC value %lu exceeds max %lu, clamping", value, max_value);
+        log_w("DAC value %lu exceeds max %lu, clamping", value, max_value);
         value = max_value;
     }
 
@@ -259,14 +259,14 @@ int32_t dac_set_voltage(dac_t *dac, uint8_t channel, uint32_t voltage_mv)
 
     if (dac == NULL)
     {
-        LOG_E("DAC device is NULL");
-        return -EINVAL;
+        log_e("DAC device is NULL");
+        return -ERR_INVAL;
     }
 
     if (channel >= dac->channel_count)
     {
-        LOG_E("Invalid channel: %u (max: %u)", channel, dac->channel_count);
-        return -EINVAL;
+        log_e("Invalid channel: %u (max: %u)", channel, dac->channel_count);
+        return -ERR_INVAL;
     }
 
     if (dac->ops == NULL || dac->ops->set_voltage != NULL)
@@ -278,15 +278,15 @@ int32_t dac_set_voltage(dac_t *dac, uint8_t channel, uint32_t voltage_mv)
     /* 否则，通过set_value实现 */
     if (dac->ops == NULL || dac->ops->set_value == NULL)
     {
-        LOG_E("DAC '%s' not registered or missing set_value operation",
+        log_e("DAC '%s' not registered or missing set_value operation",
               dac->name != NULL ? dac->name : "unknown");
-        return -ENODEV;
+        return -ERR_NODEV;
     }
 
     /* 检查电压是否超出范围 */
     if (voltage_mv > dac->vref_mv)
     {
-        LOG_W("DAC voltage %lu mV exceeds vref %lu mV, clamping",
+        log_w("DAC voltage %lu mV exceeds vref %lu mV, clamping",
               voltage_mv, dac->vref_mv);
         voltage_mv = dac->vref_mv;
     }
@@ -314,15 +314,15 @@ int32_t hw_dac_register(dac_t *dev, const char *name, const struct dac_ops *ops,
 
     if (dev == NULL || name == NULL || ops == NULL)
     {
-        LOG_E("Invalid parameter: dev=%p, name=%p, ops=%p", dev, name, ops);
-        return -EINVAL;
+        log_e("Invalid parameter: dev=%p, name=%p, ops=%p", dev, name, ops);
+        return -ERR_INVAL;
     }
 
     /* 检查必需的操作函数 */
     if (ops->set_value == NULL)
     {
-        LOG_E("Missing mandatory operation: set_value");
-        return -EINVAL;
+        log_e("Missing mandatory operation: set_value");
+        return -ERR_INVAL;
     }
 
     /* 检查设备名称是否已存在 */
@@ -331,13 +331,13 @@ int32_t hw_dac_register(dac_t *dev, const char *name, const struct dac_ops *ops,
         existing = list_entry(node, dac_t, node);
         if (existing == dev)
         {
-            LOG_E("DAC device already registered");
-            return -EEXIST;
+            log_e("DAC device already registered");
+            return -ERR_EXIST;
         }
         if (existing->name != NULL && strcmp(existing->name, name) == 0)
         {
-            LOG_E("DAC name '%s' already exists", name);
-            return -EEXIST;
+            log_e("DAC name '%s' already exists", name);
+            return -ERR_EXIST;
         }
     }
 
@@ -365,7 +365,7 @@ int32_t hw_dac_register(dac_t *dev, const char *name, const struct dac_ops *ops,
     list_node_init(&dev->node);
     list_add_tail(&dev->node, &dac_device_list);
 
-    LOG_I("DAC device '%s' registered (resolution=%u bits, vref=%lu mV, channels=%u)",
+    log_i("DAC device '%s' registered (resolution=%u bits, vref=%lu mV, channels=%u)",
           name, dev->resolution_bits, dev->vref_mv, dev->channel_count);
 
     return 0;

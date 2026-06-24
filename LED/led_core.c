@@ -36,11 +36,11 @@ int32_t LED_Register(led_t *self, const led_ops_t *ops, void *hw_ctx)
     int32_t ret = 0;
 
     if ((self == NULL) || (ops == NULL) || (hw_ctx == NULL)) {
-        return -EINVAL;
+        return -ERR_INVAL;
     }
 
     if ((ops->init == NULL) || (ops->on == NULL) || (ops->off == NULL)) {
-        return -EINVAL;
+        return -ERR_INVAL;
     }
 
     /* 清空实例状态 */
@@ -63,7 +63,7 @@ int32_t LED_On(led_t *self)
     int32_t ret = 0;
 
     if ((self == NULL) || (self->ops == NULL)) {
-        return -EINVAL;
+        return -ERR_INVAL;
     }
 
     if (self->is_on) {
@@ -75,7 +75,7 @@ int32_t LED_On(led_t *self)
         self->is_on = true;
         self->brightness = LED_BRIGHTNESS_MAX;
     } else {
-        ret = -EIO;
+        ret = -ERR_IO;
     }
     return ret;
 }
@@ -85,7 +85,7 @@ int32_t LED_Off(led_t *self)
     int32_t ret = 0;
 
     if ((self == NULL) || (self->ops == NULL)) {
-        return -EINVAL;
+        return -ERR_INVAL;
     }
 
     if (!self->is_on) {
@@ -97,7 +97,7 @@ int32_t LED_Off(led_t *self)
         self->is_on = false;
         self->brightness = 0;
     } else {
-        ret = -EIO;
+        ret = -ERR_IO;
     }
     return ret;
 }
@@ -107,15 +107,15 @@ int32_t LED_SetBrightness(led_t *self, uint8_t brightness)
     int32_t ret = 0;
 
     if ((self == NULL) || (self->ops == NULL)) {
-        return -EINVAL;
+        return -ERR_INVAL;
     }
 
     if (self->ops->set_brightness == NULL) {
-        return -ENOTSUPP;
+        return -ERR_NOTSUPP;
     }
 
     if (brightness > LED_BRIGHTNESS_MAX) {
-        return -EINVAL;
+        return -ERR_INVAL;
     }
 
     if (brightness == self->brightness) {
@@ -127,7 +127,7 @@ int32_t LED_SetBrightness(led_t *self, uint8_t brightness)
         self->brightness = brightness;
         self->is_on = (brightness > 0U);
     } else {
-        ret = -EIO;
+        ret = -ERR_IO;
     }
     return ret;
 }

@@ -12,8 +12,8 @@
   *
   ******************************************************************************
   */
-#ifndef __SERIAL_H__
-#define __SERIAL_H__
+#ifndef SERIAL_H__
+#define SERIAL_H__
 
 #ifdef __cplusplus
  extern "C" {
@@ -21,6 +21,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "kfifo.h"
+#include "dev_cfg.h"
 #include "my_list.h"
 #include <stdbool.h>
 
@@ -100,7 +101,7 @@ struct serial_configure
     uint32_t stop_bits      :2;         ///< Stop bits
     uint32_t parity         :2;         ///< Parity
     uint32_t flowcontrol    :1;         ///< Flow control
-    uint32_t reserved       :23;         ///< Reserved
+    uint32_t reserved       :23;        ///< Reserved
 };
 
 /**
@@ -127,8 +128,8 @@ typedef struct serial{
     size_t tx_bufsz;                    ///< The size of tx buffer
     void *rx_buf;                       ///< Pointer to rx Buffer
     void *tx_buf;                       ///< Pointer to tx Buffer
-    kfifo_t rx_fifo;                    ///< rx fifo
-    kfifo_t tx_fifo;                    ///< tx fifo
+    Kfifo_t rx_fifo;                    ///< rx fifo
+    Kfifo_t tx_fifo;                    ///< tx fifo
     volatile size_t current_tx_len;     ///< The length of current tx data
     list_t node;                        ///< Node of serial list
     void *prv_data;                     ///< Private data
@@ -142,24 +143,24 @@ typedef struct serial{
 /**
  * @brief Serial device management functions
  */
-serial_t* serial_find    (const char *name);
-int       serial_open    (serial_t *port);
-void      serial_close   (serial_t *port);
-int       serial_read    (serial_t *port, void *buffer, size_t size);
-int       serial_write   (serial_t *port, const void *buffer, size_t size);
-int       serial_control (serial_t *port, int cmd, void *arg);
+serial_t* Serial_Find    (const char *name);
+int32_t   Serial_Open    (serial_t *port);
+void      Serial_Close   (serial_t *port);
+int32_t   Serial_Read    (serial_t *port, void *buffer, size_t size);
+int32_t   Serial_Write   (serial_t *port, const void *buffer, size_t size);
+int32_t   Serial_Control (serial_t *port, int cmd, void *arg);
 
+int32_t   Serial_Register(serial_t *port, const char *name);
 
 /**
- * @brief Hardware-specific functions (called by low-level drivers)
+ * @brief 供底层中断调用的回调函数
  */
-int  hw_serial_register     (serial_t *port, const char *name);
-void hw_serial_rx_done_isr  (serial_t *port, const uint8_t *buf, uint16_t size);
-void hw_serial_tx_done_isr  (serial_t *port);
+void     Serial_RxIsrHook (serial_t *port, const uint8_t *buf, uint16_t size);
+void     Serial_TxIsrHook (serial_t *port);
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
-#endif /* __SERIAL_H__ */
+#endif /* SERIAL_H__ */
 

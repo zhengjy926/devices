@@ -24,7 +24,7 @@
 #include "mtd_config.h"
 
 #if MTD_SUPPORT_PARTITION
-#include "../../utilities/my_list.h"
+#include "my_list.h"
 #endif
 
 /* Exported define -----------------------------------------------------------*/

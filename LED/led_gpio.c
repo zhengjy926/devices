@@ -49,7 +49,7 @@ int32_t LED_GPIO_Register(led_t *self, led_gpio_ctx_t *ctx,
     int32_t ret;
 
     if ((self == NULL) || (ctx == NULL) || (name == NULL)) {
-        return -EINVAL;
+        return -ERR_INVAL;
     }
 
     ret = GPIO_GetPinId(name, &pin_id);
@@ -95,3 +95,6 @@ static int32_t LED_GPIO_Off(led_t *self)
 {
     return LED_GPIO_SetLevel(self, false);
 }
+
+
+

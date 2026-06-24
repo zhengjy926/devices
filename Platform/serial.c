@@ -19,8 +19,8 @@
 #include "cmsis_compiler.h"
 
 #define  LOG_TAG             "serial"
-#define  LOG_LVL             4
-#include "log.h"
+#define  LOG_LVL             ELOG_LVL_DEBUG
+#include "elog.h"
 
 /* Private variables ---------------------------------------------------------*/
 LIST_HEAD(serial_list);                    /* serial list head */
@@ -40,14 +40,14 @@ static void start_transfer(serial_t *port);
   * @retval pointer to serial device
   *         NULL if not found
   */
-serial_t* serial_find(const char *name)
+serial_t* Serial_Find(const char *name)
 {
     serial_t *dev = NULL;
     list_t *node = NULL;
     
     /* Parameter check */
     if (name == NULL) {
-        LOG_E("serial name is NULL");
+        log_e("serial name is NULL");
         return NULL;
     }
     
@@ -66,16 +66,16 @@ serial_t* serial_find(const char *name)
   * @brief  Initialize serial port
   * @param  port: pointer to serial device
   * @retval 0 on success
-  *         -EINVAL invalid parameter
-  *         -EIO I/O error
+  *         -ERR_INVAL invalid parameter
+  *         -ERR_IO I/O error
   */
-int serial_open(serial_t *port)
+int32_t Serial_Open(serial_t *port)
 {
     int ret = 0;
     
     if (!port) {
-        LOG_E("");
-        return -EINVAL;
+        log_e("");
+        return -ERR_INVAL;
     }
     
     if (port->opened) {
@@ -83,11 +83,11 @@ int serial_open(serial_t *port)
     }
     
     if (!port->ops || !port->ops->init) {
-        return -EINVAL;
+        return -ERR_INVAL;
     }
 
     if (!port->rx_buf || port->rx_bufsz == 0 || !port->tx_buf || port->tx_bufsz == 0) {
-        return -EINVAL;
+        return -ERR_INVAL;
     }
     
     /* Initialize hardware */
@@ -96,11 +96,11 @@ int serial_open(serial_t *port)
         return ret;
     }
     /* Initialize FIFO */
-    ret = kfifo_init(&port->rx_fifo, port->rx_buf, port->rx_bufsz, 1);
+    ret = Kfifo_Init(&port->rx_fifo, port->rx_buf, port->rx_bufsz, 1);
     if (ret) {
         return ret;
     }
-    ret = kfifo_init(&port->tx_fifo, port->tx_buf, port->tx_bufsz, 1);
+    ret = Kfifo_Init(&port->tx_fifo, port->tx_buf, port->tx_bufsz, 1);
     if (ret) {
         return ret;
     }
@@ -112,7 +112,7 @@ int serial_open(serial_t *port)
     return 0;
 }
 
-void serial_close(serial_t *port)
+void Serial_Close(serial_t *port)
 {
     
 }
@@ -124,16 +124,16 @@ void serial_close(serial_t *port)
   * @param  arg: control argument
   * @retval 0 on success, negative error code on failure
   */
-int serial_control(serial_t *port, int cmd, void *arg)
+int32_t Serial_Control(serial_t *port, int cmd, void *arg)
 {
     int ret = 0;
     
     if (!port) {
-        return -EINVAL;
+        return -ERR_INVAL;
     }
     
     if (!port->opened) {
-        return -EIO;
+        return -ERR_IO;
     }
     
     switch (cmd) {
@@ -141,7 +141,7 @@ int serial_control(serial_t *port, int cmd, void *arg)
         {
             struct serial_configure *config = (struct serial_configure *)arg;
             if (!config) {
-                return -EINVAL;
+                return -ERR_INVAL;
             }
             
             /* Apply new configuration if hardware configure function is available */
@@ -160,7 +160,7 @@ int serial_control(serial_t *port, int cmd, void *arg)
         {
             struct serial_configure *config = (struct serial_configure *)arg;
             if (!config) {
-                return -EINVAL;
+                return -ERR_INVAL;
             }
             
             *config = port->config;
@@ -168,7 +168,7 @@ int serial_control(serial_t *port, int cmd, void *arg)
         }
         
         default:
-            return -ENOSYS; /* Command not supported */
+            return -ERR_NOSYS; /* Command not supported */
     }
     
     return ret;
@@ -180,19 +180,19 @@ int serial_control(serial_t *port, int cmd, void *arg)
   * @param  buffer: pointer to buffer
   * @param  size: size of buffer
   * @retval number of bytes read
-  *         -EINVAL invalid parameter
+  *         -ERR_INVAL invalid parameter
   */
-ssize_t serial_read(serial_t *port, void *buffer, size_t size)
+int32_t Serial_Read(serial_t *port, void *buffer, size_t size)
 {
-    ssize_t ret = 0;
+    int32_t ret = 0;
     
     if(!port || !buffer || size == 0) {
-        return -EINVAL;
+        return -ERR_INVAL;
     }
     if (!port->opened) {
-        return -EIO;
+        return -ERR_IO;
     }
-    ret = kfifo_out(&port->rx_fifo, buffer, size);
+    ret = Kfifo_Out(&port->rx_fifo, buffer, size);
     return ret;
 }
 
@@ -208,7 +208,7 @@ static void start_transfer(serial_t *port)
     }
     
     size_t off = 0;
-    size_t len = kfifo_out_linear_locked(&port->tx_fifo, &off, kfifo_len(&port->tx_fifo));
+    size_t len = Kfifo_OutLinear(&port->tx_fifo, &off, Kfifo_Len(&port->tx_fifo));
     if (len == 0)
         return;
 
@@ -227,19 +227,19 @@ static void start_transfer(serial_t *port)
   * @param  buffer: pointer to buffer
   * @param  size: size of buffer
   * @retval number of bytes written
-  *         -EINVAL invalid parameter
-  *         -EIO I/O error
+  *         -ERR_INVAL invalid parameter
+  *         -ERR_IO I/O error
   */
-ssize_t serial_write(serial_t *port, const void *buffer, size_t size)
+int32_t Serial_Write(serial_t *port, const void *buffer, size_t size)
 {
-    ssize_t ret = 0;
+    int32_t ret = 0;
     if (!port || !buffer || size == 0)
-        return -EINVAL;
+        return -ERR_INVAL;
     
     if (!port->opened)
-        return -EIO;
+        return -ERR_IO;
     
-    ret = kfifo_in(&port->tx_fifo, buffer, size);
+    ret = Kfifo_In(&port->tx_fifo, buffer, size);
 
     uint32_t primask = __get_PRIMASK();
     __disable_irq();
@@ -257,17 +257,17 @@ ssize_t serial_write(serial_t *port, const void *buffer, size_t size)
   * @param  port: pointer to serial device
   * @retval None
   */
-void hw_serial_tx_done_isr(serial_t *port)
+void Serial_TxIsrHook(serial_t *port)
 {
     if (!port)
         return;
 
     /* 跳过已发送的数据 */
-    kfifo_skip_count(&port->tx_fifo, port->current_tx_len);
+    Kfifo_SkipCount(&port->tx_fifo, port->current_tx_len);
     port->current_tx_len = 0;
 
     /* 如果还有数据，立即启动下一次发送 */
-    if (!kfifo_is_empty(&port->tx_fifo)) {
+    if (Kfifo_Len(&port->tx_fifo)) {
         start_transfer(port);
     }
 }
@@ -279,14 +279,14 @@ void hw_serial_tx_done_isr(serial_t *port)
   * @param  size: size of received data
   * @retval None
   */
-void hw_serial_rx_done_isr(serial_t *port, const uint8_t *buf, uint16_t size)
+void Serial_RxIsrHook(serial_t *port, const uint8_t *buf, uint16_t size)
 {
     if (!port || !buf || size == 0)
         return;
 
-    size_t stored = kfifo_in(&port->rx_fifo, buf, size);
+    size_t stored = Kfifo_In(&port->rx_fifo, buf, size);
     if (stored != size) {
-        // LOG
+        log_w("%s: stored != size", port->name);
     }
 }
 
@@ -295,17 +295,17 @@ void hw_serial_rx_done_isr(serial_t *port, const uint8_t *buf, uint16_t size)
   * @param  port: pointer to serial device
   * @param  name: name of serial device
   * @retval 0 on success
-  *         -EINVAL invalid parameter
+  *         -ERR_INVAL invalid parameter
   */
-int hw_serial_register(serial_t *port, const char *name)
+int32_t Serial_Register(serial_t *port, const char *name)
 {
     if (port == NULL || name == NULL) {
-        return -EINVAL;
+        return -ERR_INVAL;
     }
     
     /* Prevent duplicate names */
-    if (serial_find(name) != NULL) {
-        return -EEXIST;
+    if (Serial_Find(name) != NULL) {
+        return -ERR_EXIST;
     }
     
     /* Set device name */

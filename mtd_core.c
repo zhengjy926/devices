@@ -18,8 +18,8 @@
 #include <string.h>
 
 #define  LOG_TAG             "mtd_core"
-#define  LOG_LVL             4
-#include "log.h"
+#define  LOG_LVL             ELOG_LVL_DEBUG
+#include "elog.h"
 
 /* Private typedef -----------------------------------------------------------*/
 
@@ -52,21 +52,21 @@ static int mtd_check_oob_ops(struct mtd_info *mtd, mtd_addr_t offs, struct mtd_o
         ops->ooblen = 0;
 
     if (offs >= mtd->size || ops->len > mtd->size - offs) {
-        LOG_E("mtd_check_oob_ops: data read/write out of bounds.");
-        return -EINVAL;
+        log_e("mtd_check_oob_ops: data read/write out of bounds.");
+        return -ERR_INVAL;
     }
 
     if (ops->ooblen) {
         size_t maxooblen;
 
         if (ops->ooboffs >= mtd_oobavail(mtd, ops))
-            return -EINVAL;
+            return -ERR_INVAL;
 
         maxooblen = ((size_t)(mtd_div_by_ws(mtd->size, mtd) - mtd_div_by_ws(offs, mtd))
                               * mtd_oobavail(mtd, ops)) - ops->ooboffs;
 
         if (ops->ooblen > maxooblen)
-            return -EINVAL;
+            return -ERR_INVAL;
     }
 
     return 0;
@@ -168,8 +168,8 @@ static void mtd_update_ecc_stats(struct mtd_info *mtd, struct mtd_info *master,
 int mtd_erase(struct mtd_info *mtd, struct erase_info *instr)
 {
     if (!mtd || !instr) {
-        LOG_E("mtd_erase: invalid argument (mtd or instr is NULL).");
-        return -EINVAL;
+        log_e("mtd_erase: invalid argument (mtd or instr is NULL).");
+        return -ERR_INVAL;
     }
 
     int ret;
@@ -183,17 +183,17 @@ int mtd_erase(struct mtd_info *mtd, struct erase_info *instr)
     mtd_addr_t mst_ofs = mtd_get_master_ofs(mtd, 0);
     
     if (!mtd->erasesize || !master->_erase)
-        return -ENOTSUPP;
+        return -ERR_NOTSUPP;
 #else
     if (!mtd->erasesize || !mtd->_erase)
-        return -ENOTSUPP;
+        return -ERR_NOTSUPP;
 #endif
 
     if (instr->addr >= mtd->size || instr->len > mtd->size - instr->addr)
-        return -EINVAL;
+        return -ERR_INVAL;
 
     if (!(mtd->flags & MTD_WRITEABLE))
-        return -EROFS;
+        return -ERR_ROFS;
 
     if (!instr->len)
         return 0;
@@ -224,8 +224,8 @@ int mtd_erase(struct mtd_info *mtd, struct erase_info *instr)
 int mtd_read(struct mtd_info *mtd, mtd_addr_t from, size_t len, size_t *retlen, uint8_t *buf)
 {
     if (!mtd || !retlen || !buf) {
-        LOG_E("mtd_read: invalid argument.");
-        return -EINVAL;
+        log_e("mtd_read: invalid argument.");
+        return -ERR_INVAL;
     }
 
     int ret;
@@ -241,7 +241,7 @@ int mtd_read(struct mtd_info *mtd, mtd_addr_t from, size_t len, size_t *retlen, 
     *retlen = ops.retlen;
 
     if (ret == 0 && *retlen != len) {
-        LOG_W("mtd_read: short read, expected %zu bytes, got %zu bytes.", len, *retlen);
+        log_w("mtd_read: short read, expected %zu bytes, got %zu bytes.", len, *retlen);
     }
 #else
 #if MTD_SUPPORT_PARTITION
@@ -268,15 +268,15 @@ int mtd_read(struct mtd_info *mtd, mtd_addr_t from, size_t len, size_t *retlen, 
 int mtd_write(struct mtd_info *mtd, mtd_addr_t to, size_t len, size_t *retlen, const uint8_t *buf)
 {
     if (!mtd || !retlen || !buf) {
-        LOG_E("mtd_write: invalid argument.");
-        return -EINVAL;
+        log_e("mtd_write: invalid argument.");
+        return -ERR_INVAL;
     }
 
     int ret;
     *retlen = 0;
 
     if (!(mtd->flags & MTD_WRITEABLE))
-        return -EROFS;
+        return -ERR_ROFS;
 
 #if MTD_SUPPORT_OOB
     struct mtd_oob_ops ops = {
@@ -311,8 +311,8 @@ int mtd_write(struct mtd_info *mtd, mtd_addr_t to, size_t len, size_t *retlen, c
 int mtd_read_oob(struct mtd_info *mtd, mtd_addr_t from, struct mtd_oob_ops *ops)
 {
     if (!mtd || !ops) {
-        LOG_E("mtd_read_oob: invalid argument.");
-        return -EINVAL;
+        log_e("mtd_read_oob: invalid argument.");
+        return -ERR_INVAL;
     }
 
 #if MTD_SUPPORT_ECC_STATS && MTD_SUPPORT_PARTITION
@@ -331,10 +331,10 @@ int mtd_read_oob(struct mtd_info *mtd, mtd_addr_t from, struct mtd_oob_ops *ops)
 #if MTD_SUPPORT_PARTITION
     struct mtd_info *master_dev = mtd_get_master(mtd);
     if (!master_dev->_read_oob && (!master_dev->_read || ops->oobbuf))
-        return -ENOTSUPP;
+        return -ERR_NOTSUPP;
 #else
     if (!mtd->_read_oob && (!mtd->_read || ops->oobbuf))
-        return -ENOTSUPP;
+        return -ERR_NOTSUPP;
 #endif
 
 #if MTD_SUPPORT_ECC_STATS
@@ -358,7 +358,7 @@ int mtd_read_oob(struct mtd_info *mtd, mtd_addr_t from, struct mtd_oob_ops *ops)
     if (ops->stats)
         ops->stats->max_bitflips = ret_code;
 
-    return ((uint32_t)ret_code >= mtd->bitflip_threshold) ? -EUCLEAN : 0;
+    return ((uint32_t)ret_code >= mtd->bitflip_threshold) ? -ERR_UCLEAN : 0;
 #else
     return 0;
 #endif
@@ -374,8 +374,8 @@ int mtd_read_oob(struct mtd_info *mtd, mtd_addr_t from, struct mtd_oob_ops *ops)
 int mtd_write_oob(struct mtd_info *mtd, mtd_addr_t to, struct mtd_oob_ops *ops)
 {
     if (!mtd || !ops) {
-        LOG_E("mtd_write_oob: invalid argument.");
-        return -EINVAL;
+        log_e("mtd_write_oob: invalid argument.");
+        return -ERR_INVAL;
     }
 
     int ret;
@@ -383,7 +383,7 @@ int mtd_write_oob(struct mtd_info *mtd, mtd_addr_t to, struct mtd_oob_ops *ops)
     ops->retlen = ops->oobretlen = 0;
 
     if (!(mtd->flags & MTD_WRITEABLE))
-        return -EROFS;
+        return -ERR_ROFS;
 
     ret = mtd_check_oob_ops(mtd, to, ops);
     if (ret)
@@ -392,10 +392,10 @@ int mtd_write_oob(struct mtd_info *mtd, mtd_addr_t to, struct mtd_oob_ops *ops)
 #if MTD_SUPPORT_PARTITION
     struct mtd_info *master = mtd_get_master(mtd);
     if (!master->_write_oob && (!master->_write || ops->oobbuf))
-        return -ENOTSUPP;
+        return -ERR_NOTSUPP;
 #else
     if (!mtd->_write_oob && (!mtd->_write || ops->oobbuf))
-        return -ENOTSUPP;
+        return -ERR_NOTSUPP;
 #endif
 
     return mtd_write_oob_std(mtd, to, ops);

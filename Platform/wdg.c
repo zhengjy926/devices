@@ -19,8 +19,8 @@
 #include <string.h>
 
 #define  LOG_TAG             "wdg"
-#define  LOG_LVL             3
-#include "log.h"
+#define  LOG_LVL             ELOG_LVL_DEBUG
+#include "elog.h"
 
 /* Private typedef -----------------------------------------------------------*/
 
@@ -40,24 +40,24 @@ static LIST_HEAD(wdg_list);
 int wdg_register_device(struct wdg_device *wdg)
 {
     if (wdg == NULL) {
-        LOG_E("wdg_register_device: wdg is NULL!");
-        return -EINVAL;
+        log_e("wdg_register_device: wdg is NULL!");
+        return -ERR_INVAL;
     }
     
     /* start是必需的操作 */
     if (wdg->ops == NULL || wdg->ops->start == NULL) {
-        LOG_E("wdg_register_device: ops or start is NULL!");
-        return -EINVAL;
+        log_e("wdg_register_device: ops or start is NULL!");
+        return -ERR_INVAL;
     }
     
     if (wdg->min_timeout > wdg->max_timeout || wdg->max_timeout == 0) {
-        LOG_E("wdg_register_device: min_timeout or max_timeout is error!");
-        return -EINVAL;
+        log_e("wdg_register_device: min_timeout or max_timeout is error!");
+        return -ERR_INVAL;
     }
     
     if (wdg_find(wdg->name) != NULL) {
-        LOG_E("wdg_register_device: name already exists!");
-        return -EEXIST;
+        log_e("wdg_register_device: name already exists!");
+        return -ERR_EXIST;
     }
     
     list_add_tail(&wdg->node, &wdg_list);
@@ -71,7 +71,7 @@ struct wdg_device *wdg_find(const char *name)
     struct wdg_device *wdg;
 
     if (name == NULL) {
-        LOG_E("wdg_find: name is NULL!");
+        log_e("wdg_find: name is NULL!");
         return NULL;
     }
 
@@ -94,13 +94,13 @@ int wdg_start(struct wdg_device *wdg)
     int ret = 0;
     
     if (wdg == NULL) {
-        LOG_E("wdg_start: wdg is NULL!");
-        return -EINVAL;
+        log_e("wdg_start: wdg is NULL!");
+        return -ERR_INVAL;
     }
     
     if (wdg->ops == NULL || wdg->ops->start == NULL) {
-        LOG_E("wdg_start: ops or start is NULL!");
-        return -ENOTSUPP;
+        log_e("wdg_start: ops or start is NULL!");
+        return -ERR_NOTSUPP;
     }
     
     if (!test_bit(WDOG_HW_RUNNING, &wdg->status)) {
@@ -123,13 +123,13 @@ int wdg_stop(struct wdg_device *wdg)
     int ret = 0;
     
     if (wdg == NULL) {
-        LOG_E("wdg_stop: wdg is NULL!");
-        return -EINVAL;
+        log_e("wdg_stop: wdg is NULL!");
+        return -ERR_INVAL;
     }
     
     if (wdg->ops == NULL || wdg->ops->stop == NULL) {
-        LOG_E("wdg_stop: ops or stop is NULL!");
-        return -ENOTSUPP;
+        log_e("wdg_stop: ops or stop is NULL!");
+        return -ERR_NOTSUPP;
     }
     
     if (test_bit(WDOG_HW_RUNNING, &wdg->status)) {
@@ -152,13 +152,13 @@ int wdg_feed(struct wdg_device *wdg)
     int ret = 0;
     
     if (wdg == NULL) {
-        LOG_E("wdg_feed: wdg is NULL!");
-        return -EINVAL;
+        log_e("wdg_feed: wdg is NULL!");
+        return -ERR_INVAL;
     }
     
     if (wdg->ops == NULL || wdg->ops->feed == NULL) {
-        LOG_E("wdg_feed: ops or feed is NULL!");
-        return -ENOTSUPP;
+        log_e("wdg_feed: ops or feed is NULL!");
+        return -ERR_NOTSUPP;
     }
     
     return wdg->ops->feed(wdg);
@@ -175,18 +175,18 @@ int wdg_set_timeout(struct wdg_device *wdg, uint32_t timeout)
     int ret = 0;
     
     if (wdg == NULL) {
-        LOG_E("wdg_set_timeout: wdg is NULL!");
-        return -EINVAL;
+        log_e("wdg_set_timeout: wdg is NULL!");
+        return -ERR_INVAL;
     }
     
     if (wdg->ops == NULL || wdg->ops->set_timeout == NULL) {
-        LOG_E("wdg_set_timeout: ops or set_timeout is NULL!");
-        return -ENOTSUPP;
+        log_e("wdg_set_timeout: ops or set_timeout is NULL!");
+        return -ERR_NOTSUPP;
     }
     
     if (timeout < wdg->min_timeout || timeout > wdg->max_timeout) {
-        LOG_W("wdg_set_timeout: timeout is invalid parameter!");
-        return -EINVAL;
+        log_w("wdg_set_timeout: timeout is invalid parameter!");
+        return -ERR_INVAL;
     }
     
     return wdg->ops->set_timeout(wdg, timeout);
@@ -201,12 +201,12 @@ int wdg_set_timeout(struct wdg_device *wdg, uint32_t timeout)
 int wdg_set_pretimeout(struct wdg_device *wdg, uint32_t timeout_ms)
 {
     if (wdg == NULL) {
-        LOG_E("wdg_set_pretimeout: wdg is NULL!");
-        return -EINVAL;
+        log_e("wdg_set_pretimeout: wdg is NULL!");
+        return -ERR_INVAL;
     }
     if (wdg->ops == NULL || wdg->ops->set_pretimeout == NULL) {
-        LOG_E("wdg_set_pretimeout: ops or set_pretimeout is NULL!");
-        return -ENOTSUPP;
+        log_e("wdg_set_pretimeout: ops or set_pretimeout is NULL!");
+        return -ERR_NOTSUPP;
     }
     return wdg->ops->set_pretimeout(wdg, timeout_ms);
 }
@@ -219,8 +219,8 @@ int wdg_set_pretimeout(struct wdg_device *wdg, uint32_t timeout_ms)
 int wdg_get_timeout(struct wdg_device *wdg, uint32_t *timeout)
 {
     if (wdg == NULL || timeout == NULL) {
-        LOG_E("wdg_get_timeout: wdg or timeout is NULL!");
-        return -EINVAL;
+        log_e("wdg_get_timeout: wdg or timeout is NULL!");
+        return -ERR_INVAL;
     }
     
     *timeout = wdg->timeout;
@@ -236,12 +236,12 @@ int wdg_get_timeout(struct wdg_device *wdg, uint32_t *timeout)
 int wdg_get_state(const struct wdg_device *wdg, uint32_t *state)
 {
     if (wdg == NULL || state == NULL) {
-        LOG_E("wdg_get_state: wdg or state is NULL!");
-        return -EINVAL;
+        log_e("wdg_get_state: wdg or state is NULL!");
+        return -ERR_INVAL;
     }
     if (wdg->ops == NULL || wdg->ops->status == NULL) {
-        LOG_E("wdg_get_state: ops or status is NULL!");
-        return -ENOTSUPP;
+        log_e("wdg_get_state: ops or status is NULL!");
+        return -ERR_NOTSUPP;
     }
     *state = wdg->ops->status((struct wdg_device *)wdg);
     return 0;

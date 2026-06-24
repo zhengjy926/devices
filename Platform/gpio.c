@@ -19,8 +19,8 @@
 #include <stddef.h>
 
 #define  LOG_TAG             "gpio"
-#define  LOG_LVL             3
-#include "log.h"
+#define  LOG_LVL             ELOG_LVL_DEBUG
+#include "elog.h"
 
 /* Private typedef -----------------------------------------------------------*/
 
@@ -41,17 +41,40 @@ static const struct gpio_ops* _hw_pin;
 
 /* Exported functions --------------------------------------------------------*/
 /**
+ * @brief Get GPIO pin identifier from name
+ * @param name Pin name (e.g., "PA0")
+ * @param pin_id Pointer to store the pin identifier
+ * @return 0 on success, negative errno on failure
+ */
+int32_t GPIO_GetPinId(const char *name, uint8_t *pin_id)
+{
+    if ((name == NULL) || (pin_id == NULL)) {
+        return -ERR_INVAL;
+    }
+
+    if ((_hw_pin == NULL) || (_hw_pin->get_pin_id == NULL))
+    {
+        return -ERR_NOSYS;
+    }
+
+    return _hw_pin->get_pin_id(name, pin_id);
+}
+
+/**
  * @brief Set GPIO pin mode and pull resistor
  * @param pin_id Pin identifier
  * @param mode Pin mode (INPUT/OUTPUT_PP/OUTPUT_OD)
  * @param pull_resistor Pull resistor configuration
  * @return None
  */
-void gpio_set_mode(uint32_t pin_id, pin_mode_t mode, pin_pull_t pull_resistor)
+int32_t GPIO_SetMode(uint8_t pin_id, PIN_Mode_e mode, PIN_Pull_e pull_resistor)
 {
-    LOG_ASSERT(_hw_pin->set_mode != NULL);
-    
-    _hw_pin->set_mode(pin_id, mode, pull_resistor);
+    if ((_hw_pin == NULL) || (_hw_pin->set_mode == NULL))
+    {
+        return -ERR_INVAL;
+    }
+
+    return _hw_pin->set_mode(pin_id, mode, pull_resistor);
 }
 
 /**
@@ -60,11 +83,14 @@ void gpio_set_mode(uint32_t pin_id, pin_mode_t mode, pin_pull_t pull_resistor)
  * @param value Digital value to write (0 or 1)
  * @return None
  */
-void gpio_write(uint32_t pin_id, uint8_t value)
+int32_t GPIO_Write(uint8_t pin_id, uint8_t value)
 {
-    LOG_ASSERT(_hw_pin->write != NULL);
-    
-    _hw_pin->write(pin_id, value);
+    if ((_hw_pin == NULL) || (_hw_pin->write == NULL))
+    {
+        return -ERR_INVAL;
+    }
+
+    return _hw_pin->write(pin_id, value);
 }
 
 /**
@@ -72,26 +98,18 @@ void gpio_write(uint32_t pin_id, uint8_t value)
  * @param pin_id Pin identifier
  * @return Digital value read from the pin (0 or 1)
  */
-uint8_t gpio_read(size_t pin_id)
+int32_t GPIO_Read(uint8_t pin_id, uint8_t *value)
 {
-    LOG_ASSERT(_hw_pin->read != NULL);
-    
-    return _hw_pin->read(pin_id);
-}
+    if (value == NULL) {
+        return -ERR_INVAL;
+    }
 
-/**
- * @brief Get GPIO pin identifier from name
- * @param name Pin name (e.g., "PA.0")
- * @return Pin identifier or -EINVAL if name is invalid
- */
-int gpio_get(const char *name)
-{
-    if (name == NULL)
-        return -EINVAL;
-    
-    LOG_ASSERT(_hw_pin->get != NULL);
-    
-    return _hw_pin->get(name);
+    if ((_hw_pin == NULL) || (_hw_pin->read == NULL))
+    {
+        return -ERR_INVAL;
+    }
+
+    return _hw_pin->read(pin_id, value);
 }
 
 /**
@@ -100,64 +118,57 @@ int gpio_get(const char *name)
  * @param event Interrupt trigger event (RISING/FALLING/RISING_FALLING)
  * @param hdr Interrupt handler function
  * @param args Argument passed to the interrupt handler
- * @return 0 on success, -ENOSYS if operation is not supported
+ * @return 0 on success, -ERR_NOSYS if operation is not supported
  */
-int gpio_attach_irq(uint32_t pin_id, pin_event_t event, void (*hdr)(void *args), void *args)
+int32_t GPIO_AttachIrq(uint8_t pin_id, PIN_Event_e event, void (*hdr)(void *args), void *args)
 {
-    LOG_ASSERT(_hw_pin != NULL);
-    
-    if (_hw_pin->attach_irq)
+    if ((_hw_pin == NULL) || (_hw_pin->attach_irq == NULL))
     {
-        return _hw_pin->attach_irq(pin_id, event, hdr, args);
+        return -ERR_NOSYS;
     }
-    return -ENOSYS;
+    return _hw_pin->attach_irq(pin_id, event, hdr, args);
 }
 
 /**
  * @brief Detach interrupt handler from GPIO pin
  * @param pin_id Pin identifier
- * @return 0 on success, -ENOSYS if operation is not supported
+ * @return 0 on success, -ERR_NOSYS if operation is not supported
  */
-int gpio_detach_irq(uint32_t pin_id)
+int32_t GPIO_DetachIrq(uint8_t pin_id)
 {
-    LOG_ASSERT(_hw_pin != NULL);
-    
-    if (_hw_pin->detach_irq)
+    if ((_hw_pin == NULL) || (_hw_pin->detach_irq == NULL))
     {
-        return _hw_pin->detach_irq(pin_id);
+        return -ERR_NOSYS;
     }
-    return -ENOSYS;
+    return _hw_pin->detach_irq(pin_id);
 }
 
 /**
  * @brief Enable or disable GPIO interrupt
  * @param pin_id Pin identifier
  * @param enabled 1 to enable, 0 to disable
- * @return 0 on success, -ENOSYS if operation is not supported
+ * @return 0 on success, -ERR_NOSYS if operation is not supported
  */
-int gpio_irq_enable(uint32_t pin_id, uint32_t enabled)
+int32_t GPIO_IrqEnable(uint8_t pin_id, uint32_t enabled)
 {
-    LOG_ASSERT(_hw_pin != NULL);
-    
-    if (_hw_pin->irq_enable)
+    if ((_hw_pin == NULL) || (_hw_pin->irq_enable == NULL))
     {
-        return _hw_pin->irq_enable(pin_id, enabled);
+        return -ERR_NOSYS;
     }
-    return -ENOSYS;
+    return _hw_pin->irq_enable(pin_id, enabled);
 }
 
 /**
  * @brief Register GPIO operations
  * @param ops Pointer to the GPIO operations structure
- * @return 0 on success, -EINVAL if ops is NULL
+ * @return 0 on success, -ERR_INVAL if ops is NULL
  */
-int gpio_register(const struct gpio_ops *ops)
+int32_t GPIO_Register(const struct gpio_ops *ops)
 {
     if (ops == NULL)
-        return -EINVAL;
+        return -ERR_INVAL;
     
     _hw_pin = ops;
     return 0;
 }
 /* Private functions ---------------------------------------------------------*/
-
