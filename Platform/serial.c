@@ -27,10 +27,10 @@ LIST_HEAD(serial_list);                    /* serial list head */
 
 /* Private function prototypes -----------------------------------------------*/
 #if USING_RTOS
-    static void serial_tx_task(void *arg);
+    static void Serial_tx_task(void *arg);
 #endif
 
-static void start_transfer(serial_t *port);
+static void start_transfer(Serial_t *port);
 
 /* Exported functions --------------------------------------------------------*/
 
@@ -40,9 +40,9 @@ static void start_transfer(serial_t *port);
   * @retval pointer to serial device
   *         NULL if not found
   */
-serial_t* Serial_Find(const char *name)
+Serial_t* Serial_Find(const char *name)
 {
-    serial_t *dev = NULL;
+    Serial_t *dev = NULL;
     list_t *node = NULL;
     
     /* Parameter check */
@@ -69,7 +69,7 @@ serial_t* Serial_Find(const char *name)
   *         -ERR_INVAL invalid parameter
   *         -ERR_IO I/O error
   */
-int32_t Serial_Open(serial_t *port)
+int32_t Serial_Open(Serial_t *port)
 {
     int ret = 0;
     
@@ -112,7 +112,7 @@ int32_t Serial_Open(serial_t *port)
     return 0;
 }
 
-void Serial_Close(serial_t *port)
+void Serial_Close(Serial_t *port)
 {
     
 }
@@ -124,7 +124,7 @@ void Serial_Close(serial_t *port)
   * @param  arg: control argument
   * @retval 0 on success, negative error code on failure
   */
-int32_t Serial_Control(serial_t *port, int cmd, void *arg)
+int32_t Serial_Control(Serial_t *port, int cmd, void *arg)
 {
     int ret = 0;
     
@@ -182,7 +182,7 @@ int32_t Serial_Control(serial_t *port, int cmd, void *arg)
   * @retval number of bytes read
   *         -ERR_INVAL invalid parameter
   */
-int32_t Serial_Read(serial_t *port, void *buffer, size_t size)
+int32_t Serial_Read(Serial_t *port, void *buffer, size_t size)
 {
     int32_t ret = 0;
     
@@ -196,12 +196,34 @@ int32_t Serial_Read(serial_t *port, void *buffer, size_t size)
     return ret;
 }
 
+uint16_t Serial_GetRxLength(const Serial_t *port)
+{
+    return (uint16_t)Kfifo_Len(&port->rx_fifo);
+}
+
+int32_t Serial_ReadPeek(Serial_t *port, uint8_t *buffer, uint16_t length)
+{
+    if ((port == NULL) || (buffer == NULL) || (length == 0U)) {
+        return -ERR_INVAL;
+    }
+    return (uint16_t)Kfifo_OutPeek(&port->rx_fifo, buffer, length);
+}
+
+void Serial_ReadSkip(Serial_t *port, uint16_t length)
+{
+    if ((port == NULL) || (length == 0U)) {
+        return;
+    }
+
+    Kfifo_SkipCount(&port->rx_fifo, length);
+}
+
 /**
   * @brief  Start transfer operation
   * @param  port: pointer to serial device
   * @retval None
   */
-static void start_transfer(serial_t *port)
+static void start_transfer(Serial_t *port)
 {
     if (!port || !port->ops || !port->ops->send) {
         return;
@@ -230,7 +252,7 @@ static void start_transfer(serial_t *port)
   *         -ERR_INVAL invalid parameter
   *         -ERR_IO I/O error
   */
-int32_t Serial_Write(serial_t *port, const void *buffer, size_t size)
+int32_t Serial_Write(Serial_t *port, const void *buffer, size_t size)
 {
     int32_t ret = 0;
     if (!port || !buffer || size == 0)
@@ -252,12 +274,26 @@ int32_t Serial_Write(serial_t *port, const void *buffer, size_t size)
     return ret;
 }
 
+int32_t Serial_SetRxCallback(Serial_t            *port, 
+                             Serial_RxCallback_t callback,
+                             void                *user_data)
+{
+    if (port == NULL || callback == NULL) {
+        return -ERR_INVAL;
+    }
+
+    port->rx_callback   = callback;
+    port->rx_user_data  = user_data;
+
+    return 0;
+}
+
 /**
   * @brief  Serial transmit complete callback (called from hardware driver)
   * @param  port: pointer to serial device
   * @retval None
   */
-void Serial_TxIsrHook(serial_t *port)
+void Serial_TxIsrHook(Serial_t *port)
 {
     if (!port)
         return;
@@ -279,7 +315,7 @@ void Serial_TxIsrHook(serial_t *port)
   * @param  size: size of received data
   * @retval None
   */
-void Serial_RxIsrHook(serial_t *port, const uint8_t *buf, uint16_t size)
+void Serial_RxIsrHook(Serial_t *port, const uint8_t *buf, uint16_t size)
 {
     if (!port || !buf || size == 0)
         return;
@@ -287,6 +323,10 @@ void Serial_RxIsrHook(serial_t *port, const uint8_t *buf, uint16_t size)
     size_t stored = Kfifo_In(&port->rx_fifo, buf, size);
     if (stored != size) {
         log_w("%s: stored != size", port->name);
+    }
+
+    if (port->rx_callback != NULL) {
+        port->rx_callback(port, port->rx_user_data);
     }
 }
 
@@ -297,7 +337,7 @@ void Serial_RxIsrHook(serial_t *port, const uint8_t *buf, uint16_t size)
   * @retval 0 on success
   *         -ERR_INVAL invalid parameter
   */
-int32_t Serial_Register(serial_t *port, const char *name)
+int32_t Serial_Register(Serial_t *port, const char *name)
 {
     if (port == NULL || name == NULL) {
         return -ERR_INVAL;

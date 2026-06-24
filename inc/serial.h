@@ -88,7 +88,7 @@
 
 /* Exported typedef ----------------------------------------------------------*/
 /* Forward declaration */
-struct serial;
+typedef struct serial Serial_t;
 
 /**
  * @brief Serial configuration structure
@@ -116,10 +116,12 @@ typedef struct serial_ops
     bool (*tx_is_busy)(struct serial *port);
 } serial_ops_t;
 
+typedef void(*Serial_RxCallback_t)(Serial_t *port, void *user_data);
+
 /**
  * @brief Serial device structure
  */
-typedef struct serial{
+struct serial{
     char name[SERIAL_NAME_MAX];         ///< Serial name
     volatile uint8_t opened;            
     const serial_ops_t *ops;            ///< Low-level operation function pointer
@@ -133,7 +135,9 @@ typedef struct serial{
     volatile size_t current_tx_len;     ///< The length of current tx data
     list_t node;                        ///< Node of serial list
     void *prv_data;                     ///< Private data
-}serial_t;
+    Serial_RxCallback_t rx_callback;    ///< Callback function for received data
+    void               *rx_user_data;   ///< User data for callback function
+};
 
 /* Exported macro ------------------------------------------------------------*/
 
@@ -143,20 +147,27 @@ typedef struct serial{
 /**
  * @brief Serial device management functions
  */
-serial_t* Serial_Find    (const char *name);
-int32_t   Serial_Open    (serial_t *port);
-void      Serial_Close   (serial_t *port);
-int32_t   Serial_Read    (serial_t *port, void *buffer, size_t size);
-int32_t   Serial_Write   (serial_t *port, const void *buffer, size_t size);
-int32_t   Serial_Control (serial_t *port, int cmd, void *arg);
+Serial_t* Serial_Find    (const char *name);
+int32_t   Serial_Open    (Serial_t *port);
+void      Serial_Close   (Serial_t *port);
+int32_t   Serial_StartRx (Serial_t *port);
+int32_t   Serial_Read    (Serial_t *port, void *buffer, size_t size);
+uint16_t  Serial_GetRxLength(const Serial_t *port);
+int32_t   Serial_ReadPeek(Serial_t *port, uint8_t *buffer, uint16_t length);
+void      Serial_ReadSkip(Serial_t *port, uint16_t length);
+int32_t   Serial_Write   (Serial_t *port, const void *buffer, size_t size);
+int32_t   Serial_Control (Serial_t *port, int cmd, void *arg);
+int32_t   Serial_SetRxCallback(Serial_t *port, 
+                               Serial_RxCallback_t callback,
+                               void *user_data);
 
-int32_t   Serial_Register(serial_t *port, const char *name);
+int32_t   Serial_Register(Serial_t *port, const char *name);
 
 /**
  * @brief 供底层中断调用的回调函数
  */
-void     Serial_RxIsrHook (serial_t *port, const uint8_t *buf, uint16_t size);
-void     Serial_TxIsrHook (serial_t *port);
+void     Serial_RxIsrHook (Serial_t *port, const uint8_t *buf, uint16_t size);
+void     Serial_TxIsrHook (Serial_t *port);
 
 #ifdef __cplusplus
 }

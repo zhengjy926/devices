@@ -42,8 +42,7 @@ int32_t LED_Register(led_t *self, const led_ops_t *ops, void *hw_ctx)
     if ((ops->init == NULL) || (ops->on == NULL) || (ops->off == NULL)) {
         return -ERR_INVAL;
     }
-
-    /* 清空实例状态 */
+    
     memset(self, 0, sizeof(led_t));
 
     /* 临时挂载 hw_ctx 供 init 使用，init 成功后再绑定 ops */
